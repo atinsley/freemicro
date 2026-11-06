@@ -535,9 +535,17 @@
         "label": "FAST - types /fast, press CODEX to run"
       },
       "ACT07": {
-        "action": "key",
-        "key": "cmd+return",
-        "label": "APPR - approve in the chat in front"
+        "action": "answer_permission",
+        "answer": "approve",
+        "long_press": "always",
+        "otherwise": "cmd+return",
+        "label": "APPR - approve the newest waiting prompt (hold for always), otherwise Cmd+Enter"
+      },
+      "ACT08": {
+        "action": "answer_permission",
+        "answer": "reject",
+        "otherwise": "escape",
+        "label": "REJ - decline the newest waiting prompt, otherwise Esc"
       },
       "ACT09": {
         "action": "text",

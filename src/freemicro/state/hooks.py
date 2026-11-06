@@ -96,6 +96,9 @@ IDLE_PROMPT = "idle_prompt"
 #: that passed :func:`_looks_like_permission_prompt`.
 PROMPT_EVENT = "Notification"
 
+#: The hook that can answer a prompt. See :mod:`freemicro.permission_requests`.
+PERMISSION_REQUEST_EVENT = "PermissionRequest"
+
 
 def _looks_like_permission_prompt(event: dict) -> bool:
     """Is this ``Notification`` a request for the human, or just a ping?
@@ -153,6 +156,11 @@ def classify(event: dict) -> AgentState | None:
 
     if name == "Notification":
         return AgentState.WAITING if _looks_like_permission_prompt(event) else None
+
+    if name == PERMISSION_REQUEST_EVENT:
+        # Fires as the prompt appears, where the Notification only comes after
+        # it has waited about six seconds.
+        return AgentState.WAITING
 
     if name in ("Stop", "StopFailure"):
         return AgentState.ERROR if _stop_was_error(event) else AgentState.DONE

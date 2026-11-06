@@ -46,6 +46,9 @@ HOOK_EVENTS = (
     # actually registered here - Claude Code only fires the hooks we install.
     "PreCompact",
     "Notification",
+    # Waits for an answer from the pad while the prompt stays on screen. See
+    # `freemicro.permission_requests`. Needs the long timeout below.
+    "PermissionRequest",
     "Stop",
     "SessionEnd",
 )
@@ -54,6 +57,14 @@ HOOK_EVENTS = (
 #: writes one small file and exits; anything near this means something is very
 #: wrong, and we would much rather be killed than hold up the agent.
 HOOK_TIMEOUT_SECONDS = 10
+
+#: Events whose hook legitimately runs for longer than that.
+_EVENT_TIMEOUTS = {"PermissionRequest": 310}
+
+
+def timeout_for(event: str) -> int:
+    """The hook timeout to register for ``event``."""
+    return _EVENT_TIMEOUTS.get(event, HOOK_TIMEOUT_SECONDS)
 
 _MARKER = "freemicro"  # how we recognize our own entries for idempotency.
 
@@ -121,13 +132,13 @@ def default_settings_path() -> Path:
     return Path.home() / ".claude" / "settings.json"
 
 
-def _entry(command: str) -> Dict[str, Any]:
+def _entry(command: str, event: str = "") -> Dict[str, Any]:
     return {
         "hooks": [
             {
                 "type": "command",
                 "command": command,
-                "timeout": HOOK_TIMEOUT_SECONDS,
+                "timeout": timeout_for(event),
             }
         ]
     }
@@ -181,10 +192,10 @@ def build_settings(existing: dict, command: Optional[str] = None) -> dict:
         for _group, hook in _our_hooks(event_hooks):
             hook["command"] = command
             hook["type"] = "command"
-            hook["timeout"] = HOOK_TIMEOUT_SECONDS
+            hook["timeout"] = timeout_for(event)
             found = True
         if not found:
-            event_hooks.append(_entry(command))
+            event_hooks.append(_entry(command, event))
     return settings
 
 

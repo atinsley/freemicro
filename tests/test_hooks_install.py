@@ -86,7 +86,7 @@ def test_install_creates_every_event(settings):
     for event in hi.HOOK_EVENTS:
         hook = data["hooks"][event][0]["hooks"][0]
         assert hook["type"] == "command"
-        assert hook["timeout"] == hi.HOOK_TIMEOUT_SECONDS
+        assert hook["timeout"] == hi.timeout_for(event)
         assert hook["command"] == _command(settings)
 
 

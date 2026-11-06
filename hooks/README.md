@@ -10,7 +10,7 @@ freemicro install
 That merges a single command, `freemicro hook`, into your Claude Code
 `settings.json` for the events FreeMicro cares about
 (`UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Notification`, `Stop`,
-`SessionEnd`). The merge is **idempotent** (safe to run twice) and
+`PermissionRequest`, `SessionEnd`). The merge is **idempotent** (safe to run twice) and
 **non-destructive** (it never removes hooks it didn't add).
 
 Each hook invocation reads the event JSON on stdin, classifies it into an

@@ -763,16 +763,44 @@ def _number(act: Action, field_name: str, fallback: float) -> float:
 
 def _deliver_answer(act: Action, answer: str, backend: Backend) -> None:
     """Plan and (maybe) send one answer. Silence is a correct outcome."""
-    from freemicro import permission_prompt
+    from freemicro import permission_prompt, permission_requests
 
     if not answer:
         return
+    project = str(act.params.get("project", "") or "")
+    # A hook waiting for the pad is the exact request, with no keystrokes. Typing
+    # into a terminal tab is the fallback for a session with no hook waiting.
+    outcome = permission_requests.answer_newest(answer, project=project)
+    if outcome.status == permission_requests.ANSWERED:
+        _say_what_was_answered(answer, outcome.request)
+        return
+    if outcome.status == permission_requests.HELD:
+        return
     plan = permission_prompt.plan(
         answer,
-        project=str(act.params.get("project", "") or ""),
+        project=project,
         max_age=_number(act, "max_age", permission_prompt.MAX_AGE_SECONDS),
     )
-    permission_prompt.perform(plan, backend)
+    sent = permission_prompt.perform(plan, backend)
+    otherwise = str(act.params.get("otherwise", "") or "")
+    if otherwise and not sent:
+        backend.press_key(otherwise)
+
+
+def _say_what_was_answered(answer: str, request: Any) -> None:
+    """Post a banner, because the chat that was asking may not be the one in view."""
+    from freemicro import alerts, permission_requests
+
+    verb = {
+        permission_requests.APPROVE: "Approved",
+        permission_requests.ALWAYS: "Always allowed",
+        permission_requests.REJECT: "Declined",
+    }[answer]
+    alerts.spawn([
+        "osascript",
+        "-e",
+        alerts._display_notification("FreeMicro", f"{verb} {request.describe()}"),
+    ])
 
 
 def _forget_stale_holds(now: float) -> None:
@@ -824,6 +852,9 @@ def _check_answer_permission(params: Mapping[str, Any]) -> None:
                 f"'{name}' must be one of "
                 f"{', '.join(permission_prompt.ANSWERS)}, got {value!r}"
             )
+    otherwise = params.get("otherwise")
+    if otherwise not in (None, ""):
+        parse_combo(str(otherwise))  # raises KeyNameError (a ValueError)
     for name in ("long_press_ms", "max_age"):
         if name not in params:
             continue
@@ -836,17 +867,25 @@ def _check_answer_permission(params: Mapping[str, Any]) -> None:
 
 
 def _describe_answer_permission(act: Action) -> str:
-    from freemicro import permission_prompt
+    from freemicro import permission_prompt, permission_requests
 
+    project = str(act.params.get("project", "") or "")
     try:
-        plan = permission_prompt.plan(
-            _answer_of(act),
-            project=str(act.params.get("project", "") or ""),
-            max_age=_number(act, "max_age", permission_prompt.MAX_AGE_SECONDS),
-        )
-        line = plan.describe()
+        waiting = permission_requests.pending(project=project)
+        if waiting:
+            line = f"{_answer_of(act)} {waiting[0].describe()}"
+        else:
+            plan = permission_prompt.plan(
+                _answer_of(act),
+                project=project,
+                max_age=_number(act, "max_age", permission_prompt.MAX_AGE_SECONDS),
+            )
+            line = plan.describe()
     except Exception:  # noqa: BLE001 - --list must never fail over one binding
         line = "answer a permission prompt"
+    otherwise = act.params.get("otherwise")
+    if otherwise:
+        line += f"; otherwise press {otherwise}"
     long_answer = _answer_of(act, "long_press")
     if long_answer:
         held = _number(act, "long_press_ms", DEFAULT_LONG_PRESS_MS)
@@ -857,9 +896,11 @@ def _describe_answer_permission(act: Action) -> str:
 @action(
     ANSWER_PERMISSION,
     summary="Answer the Claude Code permission prompt of whichever session is "
-            "asking: raise its exact tab, then send the answer there. Does "
-            "nothing at all when nothing is waiting.",
-    optional=("answer", "long_press", "long_press_ms", "project", "max_age"),
+            "asking, through its hook or by raising its exact tab. Does nothing "
+            "when nothing is waiting, unless 'otherwise' names a key to press.",
+    optional=(
+        "answer", "long_press", "long_press_ms", "project", "max_age", "otherwise",
+    ),
     describe=_describe_answer_permission,
     check=_check_answer_permission,
     on_release=_release_answer_permission,

@@ -484,7 +484,29 @@ def cmd_hook(args: argparse.Namespace) -> int:
         # One diagnostic line on stderr (which Claude Code does not treat as
         # failure), then a clean exit. Never a traceback, never nonzero.
         print(f"freemicro hook: {exc}", file=sys.stderr)
+    _answer_permission_request(event)
     return 0
+
+
+def _answer_permission_request(event: dict) -> None:
+    """Wait for the pad to answer, then print the decision. Stdout is the verdict.
+
+    Any failure prints nothing, which is no decision, so the prompt stays with
+    the person. It can never turn into an approval.
+    """
+    if not isinstance(event, dict):
+        return
+    if event.get("hook_event_name") != "PermissionRequest":
+        return
+    from freemicro import permission_requests
+
+    try:
+        output = permission_requests.handle(event)
+    except Exception as exc:  # noqa: BLE001 - a hook must never break the agent
+        print(f"freemicro hook: {exc}", file=sys.stderr)
+        return
+    if output is not None:
+        print(json.dumps(output))
 
 
 def _apply_hook_event(event: dict) -> None:
@@ -492,6 +514,13 @@ def _apply_hook_event(event: dict) -> None:
     cfg = Config.load()
     state = classify(event)
     _log_raw_event(event, state)
+    # Anything else from this session means its prompt has been answered, most
+    # likely on screen, so stop the hook waiting for the pad. A Notification
+    # comes while the prompt is still up, so it doesn't count.
+    if event.get("hook_event_name") not in ("PermissionRequest", "Notification"):
+        from freemicro import permission_requests
+
+        permission_requests.retire_session(session_id_of(event))
     if state is None:
         return
 
