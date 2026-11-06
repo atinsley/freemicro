@@ -54,6 +54,7 @@ from freemicro.agentkeys import (
     normalise_project,
     resolve_slots,
 )
+from freemicro import desktop_sessions
 from freemicro.input.keys import escape_applescript
 from freemicro.state.engine import SessionState, tty_for_pid
 
@@ -98,6 +99,7 @@ _TTY_RE = re.compile(r"^/dev/[A-Za-z0-9._/-]{1,64}$")
 
 METHOD_TAB = "tab"
 METHOD_APP = "app"
+METHOD_DESKTOP = "desktop"
 METHOD_NONE = "none"
 
 
@@ -221,6 +223,9 @@ class FocusPlan:
     label: str = ""
     session: Optional[SessionState] = None
     reason: str = ""
+    #: The ``claude://`` link that opens this chat. See
+    #: :mod:`freemicro.desktop_sessions`.
+    url: str = ""
 
     @property
     def actionable(self) -> bool:
@@ -244,6 +249,8 @@ class FocusPlan:
             return f"focus {where} - {self.app} tab {self.tty}"
         if self.method == METHOD_APP:
             return f"focus {where} - {self.app} (tab unknown)"
+        if self.method == METHOD_DESKTOP:
+            return f"open {where} - Claude app chat"
         if where:
             return f"focus {where} - does nothing: {self.reason}"
         return f"nothing on this key ({self.reason})"
@@ -285,6 +292,17 @@ def plan_for_session(
             label=label,
             session=session,
         )
+    if not app:
+        # Hooks report no terminal for a chat in the Claude desktop app.
+        local_id = desktop_sessions.local_id_for(session.session_id)
+        if local_id:
+            return FocusPlan(
+                method=METHOD_DESKTOP,
+                url=desktop_sessions.chat_url(local_id),
+                project=project,
+                label=label,
+                session=session,
+            )
     if app and fallback:
         return FocusPlan(
             method=METHOD_APP,
@@ -544,11 +562,15 @@ def perform(plan: FocusPlan, backend: Any) -> bool:
     if plan.method == METHOD_APP and plan.app:
         backend.activate_app(plan.app)
         return True
+    if plan.method == METHOD_DESKTOP and plan.url:
+        desktop_sessions.spawn_open(plan.url)
+        return True
     return False
 
 
 __all__ = [
     "METHOD_APP",
+    "METHOD_DESKTOP",
     "METHOD_NONE",
     "METHOD_TAB",
     "SCRIPTABLE_APPS",

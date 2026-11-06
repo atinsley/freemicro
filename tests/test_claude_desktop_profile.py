@@ -11,12 +11,12 @@ from freemicro.padconfig import load_default
 
 #: input id -> (action kind, the parameter that defines it, its value)
 EXPECTED = {
-    "AG00": ("key", "key", "cmd+shift+["),
-    "AG01": ("key", "key", "cmd+shift+]"),
-    "AG02": ("key", "key", "cmd+n"),
-    "AG03": ("key", "key", "cmd+shift+m"),
-    "AG04": ("key", "key", "cmd+shift+i"),
-    "AG05": ("key", "key", "cmd+shift+e"),
+    "AG00": ("focus_session", "new_chat", True),
+    "AG01": ("focus_session", "new_chat", True),
+    "AG02": ("focus_session", "new_chat", True),
+    "AG03": ("focus_session", "new_chat", True),
+    "AG04": ("focus_session", "new_chat", True),
+    "AG05": ("focus_session", "new_chat", True),
     "ACT06": ("text", "text", "/fast"),
     "ACT07": ("answer_permission", "answer", "approve"),
     "ACT08": ("answer_permission", "answer", "reject"),

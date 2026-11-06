@@ -22,6 +22,16 @@ def no_hardware(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_desktop_sessions(monkeypatch, tmp_path):
+    """Keep tests away from the real Claude app's records and its links."""
+    monkeypatch.setattr(
+        "freemicro.desktop_sessions.sessions_root", lambda: tmp_path / "no-sessions"
+    )
+    monkeypatch.setattr("freemicro.desktop_sessions.spawn_open", lambda url: None)
+    monkeypatch.setattr("freemicro.desktop_sessions._found", {})
+
+
+@pytest.fixture(autouse=True)
 def no_launchd(monkeypatch):
     """No test may register a real job with launchd. Tests can still override this."""
     monkeypatch.setattr(

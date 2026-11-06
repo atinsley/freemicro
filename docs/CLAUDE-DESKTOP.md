@@ -1,9 +1,10 @@
 # Using the pad with the Claude desktop app
 
 Claude Code sessions in the desktop app's Code tab have no terminal tab, so
-FreeMicro's terminal features cannot reach them: an Agent Key cannot jump to one.
-The default keymap therefore ships a `Claude` profile that applies only while the Claude app is frontmost. Every
-other app, including Terminal, keeps the normal bindings.
+FreeMicro's terminal features cannot reach them. The default keymap therefore
+ships a `Claude` profile that applies only while the Claude app is frontmost. Every
+other app, including Terminal, keeps the normal bindings, though an Agent Key still
+opens its chat from any app.
 
 Status lighting is unaffected, because hooks fire in the desktop app too.
 
@@ -14,12 +15,7 @@ Status lighting is unaffected, because hooks fire in the desktop app too.
 
 | Key | Cap | In Codex | In the Claude app | Basis |
 |---|---|---|---|---|
-| `AG00` | Agent 1 | Select thread 1 | Previous chat (`Cmd+Shift+[`) | Docs |
-| `AG01` | Agent 2 | Select thread 2 | Next chat (`Cmd+Shift+]`) | Docs |
-| `AG02` | Agent 3 | Select thread 3 | New chat (`Cmd+N`) | Docs |
-| `AG03` | Agent 4 | Select thread 4 | Permission mode menu (`Cmd+Shift+M`) | Docs |
-| `AG04` | Agent 5 | Select thread 5 | Model menu (`Cmd+Shift+I`) | Docs |
-| `AG05` | Agent 6 | Select thread 6 | Effort menu (`Cmd+Shift+E`) | Docs |
+| `AG00`-`AG05` | Agent 1-6 | Select that key's thread | Open that key's chat; an unlit key starts a new chat | Undocumented app link |
 | `ACT06` | FAST | Toggle fast mode | Types `/fast`; press CODEX to run | Not documented for the app |
 | `ACT07` | APPR | Approve | Approve the newest waiting prompt; hold for "always"; otherwise `Cmd+Enter` | Permission hook; `Cmd+Enter` reported by a user |
 | `ACT08` | REJ | Decline | Decline the newest waiting prompt; otherwise Esc, which stops Claude's response | Permission hook |
@@ -34,8 +30,23 @@ FAST and SPLIT type their command without sending it. A slash command only runs
 at the start of a message, so sending automatically into a prompt box holding a
 draft would send the draft with the command on the end.
 
-The numbers `1`-`9` select an item in an open menu, so `AG03`-`AG05` followed by
-a number or the dial and dial press gives you mode, model and effort.
+The permission mode, model and effort menus are `Cmd+Shift+M`, `Cmd+Shift+I` and
+`Cmd+Shift+E` on the keyboard. The numbers `1`-`9`, or the dial, select in them.
+
+## Opening a chat
+
+An Agent Key opens its chat through `claude://code/continue?session=<id>`, the link
+the app's own menus use. It needs the app's `local_...` id, which FreeMicro finds in
+the app's `claude-code-sessions` records from the session id that hooks report.
+
+Each key follows one chat: your six most recently active, set by
+`"agent_keys": {"group": "chat"}`. A chat waiting on you or in error always gets a
+key. A chat keeps its key while it stays in the six, and the next one takes it when
+it drops out. Activity means Claude Code doing something, not you looking at a chat.
+
+Neither the link nor those records are documented, so an app update could change
+them. If the lookup fails, the key presses `Cmd+Shift+]` for the next chat, while
+the Claude app is in front.
 
 ## Answering prompts from the pad
 
@@ -63,8 +74,6 @@ If you swap caps, these have documented desktop shortcuts: `TERM` (`` Ctrl+` ``)
 
 ## What it cannot do yet
 
-- Jump straight to a particular chat. The app documents next and previous only,
-  so an Agent Key's light can show one project while the key moves through chats.
 - Answer a prompt after its five-minute wait. Answer it on screen instead.
 - Answer prompts that don't reach the hook, such as a sandboxed command's network
   request.

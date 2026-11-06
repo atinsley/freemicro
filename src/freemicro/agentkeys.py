@@ -109,6 +109,16 @@ POLICIES: Tuple[str, ...] = (
 )
 
 
+#: What one Agent Key stands for. A project is every chat in a directory; a chat
+#: is one conversation, which is what the vendor's own keys show.
+GROUP_PROJECT = "project"
+GROUP_CHAT = "chat"
+GROUPS = (GROUP_PROJECT, GROUP_CHAT)
+
+#: In chat mode, a chat in one of these states gets a key however old it is.
+_ALWAYS_ON_A_KEY = (AgentState.WAITING, AgentState.ERROR)
+
+
 class AgentKeysError(ValueError):
     """Raised for an ``agent_keys`` section we cannot make sense of."""
 
@@ -202,6 +212,8 @@ class AgentKeysConfig:
     policy: str = POLICY_RECENT
     slots: Tuple[str, ...] = ("",) * SLOT_COUNT
     keys: Tuple[int, ...] = tuple(range(SLOT_COUNT))
+    #: What each key stands for. See :data:`GROUPS`.
+    group: str = GROUP_PROJECT
 
     def __post_init__(self) -> None:
         if len(self.slots) != SLOT_COUNT:  # pragma: no cover - guarded in parse
@@ -276,6 +288,8 @@ class AgentKeysConfig:
         out: Dict[str, Any] = {"policy": self.policy, "slots": list(self.slots)}
         if self.subset:
             out["keys"] = list(self.keys)
+        if self.group != GROUP_PROJECT:
+            out["group"] = self.group
         return out
 
 
@@ -292,7 +306,7 @@ def parse_agent_keys(raw: Any) -> AgentKeysConfig:
     if not isinstance(raw, Mapping):
         raise AgentKeysError('"agent_keys" must be an object')
 
-    unknown = set(raw) - {"policy", "slots", "keys", "comment", "_comment"}
+    unknown = set(raw) - {"policy", "slots", "keys", "group", "comment", "_comment"}
     if unknown:
         raise AgentKeysError(
             "agent_keys has unknown field(s): " + ", ".join(sorted(unknown))
@@ -340,7 +354,19 @@ def parse_agent_keys(raw: Any) -> AgentKeysConfig:
     else:
         keys = _clean_owned_keys(keys_raw)
 
-    return AgentKeysConfig(policy=policy, slots=tuple(slots), keys=keys)
+    group = str(raw.get("group", GROUP_PROJECT)).strip().lower()
+    if group not in GROUPS:
+        raise AgentKeysError(
+            f"agent_keys.group must be one of {', '.join(GROUPS)}; "
+            f"got {raw.get('group')!r}"
+        )
+    if group == GROUP_CHAT and policy in (POLICY_PINNED, POLICY_MANUAL):
+        raise AgentKeysError(
+            f"agent_keys.group \"chat\" can't be used with policy {policy!r}: "
+            "pinned slots name projects, and a chat key follows one chat"
+        )
+
+    return AgentKeysConfig(policy=policy, slots=tuple(slots), keys=keys, group=group)
 
 
 # ---------------------------------------------------------------------------
@@ -357,17 +383,25 @@ def project_label(path: str) -> str:
 
 @dataclass(frozen=True)
 class Project:
-    """One project directory and the live sessions inside it."""
+    """One project directory and the live sessions inside it.
+
+    In chat mode (:data:`GROUP_CHAT`) there is one of these per chat, so ``path``
+    is still the real directory and ``key`` is what tells two chats in it apart.
+    """
 
     path: str
     state: AgentState
     last_active: float
     sessions: Tuple[SessionState, ...] = ()
     label: str = ""
+    #: What a slot remembers this by. Defaults to ``path``.
+    key: str = ""
 
     def __post_init__(self) -> None:
         if not self.label:
             object.__setattr__(self, "label", project_label(self.path))
+        if not self.key:
+            object.__setattr__(self, "key", self.path)
 
     @property
     def lead(self) -> Optional[SessionState]:
@@ -445,6 +479,42 @@ def group_projects(
         )
     projects.sort(key=lambda p: p.last_active, reverse=True)
     return _disambiguate(projects)
+
+
+def group_chats(
+    sessions: Sequence[SessionState],
+    *,
+    now: float,
+    limit: int,
+    decay: DecayPolicy = DEFAULT_DECAY,
+) -> List[Project]:
+    """One entry per chat: the ``limit`` that should have a key, most recent first.
+
+    A chat asking for you, or one that failed, always makes the cut. Everything
+    else is by recency, because a chat in the desktop app stays alive as long as
+    the app does, so being live says nothing about wanting a key.
+    """
+    chats: List[Project] = []
+    for session in sessions:
+        path = normalise_project(session.cwd)
+        if not path:
+            continue
+        chats.append(
+            Project(
+                path=path,
+                state=effective_state(session, now=now, decay=decay),
+                last_active=session.updated_at,
+                sessions=(session,),
+                label=f"{project_label(path)} {session.session_id[:8]}",
+                key=f"{path}#{session.session_id}",
+            )
+        )
+    chats.sort(
+        key=lambda c: (c.state in _ALWAYS_ON_A_KEY, c.last_active), reverse=True
+    )
+    kept = chats[: max(0, limit)]
+    kept.sort(key=lambda c: c.last_active, reverse=True)
+    return kept
 
 
 def _disambiguate(projects: Sequence[Project]) -> List[Project]:
@@ -605,8 +675,12 @@ def resolve_slots(
     """
     config = config or AgentKeysConfig()
     now = time.time() if now is None else now
-    projects = group_projects(sessions, now=now, decay=decay)
-    by_path: Dict[str, Project] = {p.path: p for p in projects}
+    if config.group == GROUP_CHAT:
+        limit = len(config.keys if owned is None else owned)
+        projects = group_chats(sessions, now=now, limit=limit, decay=decay)
+    else:
+        projects = group_projects(sessions, now=now, decay=decay)
+    by_path: Dict[str, Project] = {p.key: p for p in projects}
 
     # The owned set constrains every step below: a project is only ever placed
     # on a key FreeMicro drives, so an un-owned key stays empty (and is left out
@@ -644,7 +718,7 @@ def resolve_slots(
         # 3. Vacancies go to the most recently active project without a key,
         #    filling from the left so the pad stays readable - across the owned
         #    keys only.
-        waiting = [p.path for p in projects if p.path not in taken]
+        waiting = [p.key for p in projects if p.key not in taken]
         for index in range(SLOT_COUNT):
             if index not in owned or assigned[index] or not waiting:
                 continue
@@ -899,6 +973,10 @@ __all__ = [
     "SlotResolver",
     "agent_key_index",
     "effective_state",
+    "GROUPS",
+    "GROUP_CHAT",
+    "GROUP_PROJECT",
+    "group_chats",
     "group_projects",
     "normalise_project",
     "parse_agent_keys",

@@ -663,8 +663,15 @@ def _describe_focus_session(act: Action) -> str:
     if isinstance(plan, focus.FocusPlan):
         line = plan.describe()
         app = _terminal_app_of(act)
-        if plan.slot_empty and _new_terminal_enabled(act) and app:
+        if plan.slot_empty and act.params.get("new_chat"):
+            line += "; starts a new chat if nothing is there"
+        elif plan.slot_empty and _new_terminal_enabled(act) and app:
             line += f"; opens a new {app} window if nothing is there"
+        otherwise = act.params.get("otherwise")
+        if otherwise and not plan.slot_empty and not plan.actionable:
+            line += f"; presses {otherwise} instead"
+        elif otherwise and plan.slot_empty:
+            line += f"; presses {otherwise} if a chat can't be reached"
         return line
     return "focus this key's session"  # pragma: no cover - defensive
 
@@ -678,14 +685,24 @@ def _check_focus_session(params: Mapping[str, Any]) -> None:
     terminal = params.get("terminal")
     if terminal is not None and not isinstance(terminal, str):
         raise ValueError(f"'terminal' must be an app name, got {terminal!r}")
+    new_chat = params.get("new_chat")
+    if new_chat is not None and not isinstance(new_chat, bool):
+        raise ValueError(f"'new_chat' must be true or false, got {new_chat!r}")
+    otherwise = params.get("otherwise")
+    if otherwise not in (None, ""):
+        parse_combo(str(otherwise))  # raises KeyNameError (a ValueError)
 
 
 @action(
     FOCUS_SESSION,
-    summary="Raise the terminal running this Agent Key's project; when the key "
-            "is empty (no live project) open a new terminal window instead "
-            "unless new_terminal=false.",
-    optional=("slot", "project", "fallback", "new_terminal", "terminal"),
+    summary="Raise this Agent Key's project: its terminal tab, or its chat in "
+            "the Claude app. An empty key opens a new terminal window unless "
+            "new_terminal=false, or a new chat with new_chat=true. 'otherwise' "
+            "names a key to press when a live chat can't be reached.",
+    optional=(
+        "slot", "project", "fallback", "new_terminal", "terminal", "new_chat",
+        "otherwise",
+    ),
     describe=_describe_focus_session,
     check=_check_focus_session,
     modifier_safe=True,
@@ -705,7 +722,17 @@ def _run_focus_session(act: Action, backend: Backend) -> None:
     plan = _focus_plan(act)
     if focus.perform(plan, backend):
         return
-    if not isinstance(plan, focus.FocusPlan) or not plan.slot_empty:
+    if not isinstance(plan, focus.FocusPlan):
+        return
+    if not plan.slot_empty:
+        otherwise = str(act.params.get("otherwise", "") or "")
+        if otherwise:
+            backend.press_key(otherwise)
+        return
+    if act.params.get("new_chat"):
+        from freemicro import desktop_sessions
+
+        desktop_sessions.spawn_open(desktop_sessions.NEW_CHAT_URL)
         return
     if not _new_terminal_enabled(act):
         return

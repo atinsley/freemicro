@@ -51,6 +51,9 @@ HOOK_EVENTS = (
     # `freemicro.permission_requests`. Needs the long timeout below.
     "PermissionRequest",
     "Stop",
+    # A turn that ends on an API error fires this instead of Stop. Without it a
+    # failed turn looks like a key still working, never like the error it is.
+    "StopFailure",
     "SessionEnd",
 )
 

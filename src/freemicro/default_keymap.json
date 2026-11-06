@@ -446,6 +446,7 @@
   },
   "agent_keys": {
     "policy": "recent",
+    "group": "chat",
     "slots": [
       "",
       "",
@@ -455,6 +456,11 @@
       ""
     ],
     "_comment": [
+      "group: \"chat\" gives each of your six most recently active chats its own",
+      "key, as Codex does. A chat waiting on you or in error always gets one. Set",
+      "\"project\" for the rest of this comment: one key per directory, required",
+      "for the pinned and manual policies.",
+      "",
       "Which project each of the six Agent Keys follows. A key stands for a",
       "PROJECT DIRECTORY, not a session id: terminal tabs come and go, but the",
       "repo you are working in does not, so your pad never needs re-teaching.",
@@ -500,34 +506,40 @@
   "profiles": {
     "Claude": {
       "AG00": {
-        "action": "key",
-        "key": "cmd+shift+[",
-        "label": "previous chat"
+        "action": "focus_session",
+        "new_chat": true,
+        "otherwise": "cmd+shift+]",
+        "label": "open this key's chat"
       },
       "AG01": {
-        "action": "key",
-        "key": "cmd+shift+]",
-        "label": "next chat"
+        "action": "focus_session",
+        "new_chat": true,
+        "otherwise": "cmd+shift+]",
+        "label": "open this key's chat"
       },
       "AG02": {
-        "action": "key",
-        "key": "cmd+n",
-        "label": "new chat"
+        "action": "focus_session",
+        "new_chat": true,
+        "otherwise": "cmd+shift+]",
+        "label": "open this key's chat"
       },
       "AG03": {
-        "action": "key",
-        "key": "cmd+shift+m",
-        "label": "permission mode menu"
+        "action": "focus_session",
+        "new_chat": true,
+        "otherwise": "cmd+shift+]",
+        "label": "open this key's chat"
       },
       "AG04": {
-        "action": "key",
-        "key": "cmd+shift+i",
-        "label": "model menu"
+        "action": "focus_session",
+        "new_chat": true,
+        "otherwise": "cmd+shift+]",
+        "label": "open this key's chat"
       },
       "AG05": {
-        "action": "key",
-        "key": "cmd+shift+e",
-        "label": "effort menu"
+        "action": "focus_session",
+        "new_chat": true,
+        "otherwise": "cmd+shift+]",
+        "label": "open this key's chat"
       },
       "ACT06": {
         "action": "text",
