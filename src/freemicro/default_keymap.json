@@ -447,6 +447,7 @@
   "agent_keys": {
     "policy": "recent",
     "group": "chat",
+    "number_titles": false,
     "slots": [
       "",
       "",
@@ -460,6 +461,8 @@
       "key, as Codex does. A chat waiting on you or in error always gets one. Set",
       "\"project\" for the rest of this comment: one key per directory, required",
       "for the pinned and manual policies.",
+      "number_titles: true puts each chat's key number on its title, as",
+      "\"1 · Code audit\". A title updates only when you send that chat a message.",
       "",
       "Which project each of the six Agent Keys follows. A key stands for a",
       "PROJECT DIRECTORY, not a session id: terminal tabs come and go, but the",

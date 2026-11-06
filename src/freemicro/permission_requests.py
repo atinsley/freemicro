@@ -333,21 +333,21 @@ def decision_output(answer: str, event: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _pad_is_listening() -> bool:
+def pad_is_listening() -> bool:
     from freemicro import daemon
 
     holder = daemon.lock_holder()
     return bool(holder) and holder.get("role") in _LISTENING_ROLES
 
 
-def _is_non_interactive() -> bool:
+def is_non_interactive() -> bool:
     """SDK sessions have no prompt, and may have no person, so never stall them."""
     return os.environ.get("CLAUDE_CODE_ENTRYPOINT", "").startswith("sdk")
 
 
 def handle(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Run the hook: wait for the pad, then return the decision or ``None``."""
-    if _is_non_interactive() or not _pad_is_listening():
+    if is_non_interactive() or not pad_is_listening():
         return None
     request = create(event)
     try:
@@ -378,6 +378,8 @@ __all__ = [
     "directory",
     "forget_recent_answer",
     "handle",
+    "is_non_interactive",
+    "pad_is_listening",
     "pending",
     "read_answer",
     "remove",

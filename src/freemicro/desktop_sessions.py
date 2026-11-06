@@ -47,8 +47,8 @@ def chat_url(local_id: str) -> str:
     return f"claude://code/continue?session={local_id}"
 
 
-def _id_in(path: Path, session_id: str) -> Optional[str]:
-    """The app id if ``path`` is a current record of this session, else ``None``."""
+def _record_in(path: Path, session_id: str) -> Optional[dict]:
+    """The contents of ``path`` if it is a usable record of this session."""
     try:
         raw = path.read_bytes()
         if session_id.encode("utf-8") not in raw:  # Avoids parsing nearly every file.
@@ -62,8 +62,13 @@ def _id_in(path: Path, session_id: str) -> Optional[str]:
         return None
     local_id = data.get("sessionId")
     if isinstance(local_id, str) and _LOCAL_ID_RE.match(local_id):
-        return local_id
+        return data
     return None
+
+
+def _id_in(path: Path, session_id: str) -> Optional[str]:
+    record = _record_in(path, session_id)
+    return record["sessionId"] if record else None
 
 
 def _scan(session_id: str) -> str:
@@ -92,6 +97,15 @@ def local_id_for(session_id: str) -> str:
     return _scan(session_id)
 
 
+def title_for(session_id: str) -> str:
+    """The title the app shows for this chat, or ``""``. Never raises."""
+    if not local_id_for(session_id):  # Also remembers which file holds the record.
+        return ""
+    record = _record_in(_found[session_id], session_id)
+    title = record.get("title") if record else None
+    return title.strip() if isinstance(title, str) else ""
+
+
 def spawn_open(url: str) -> None:
     """Hand a link to macOS. Not waited on, because this runs on the key path."""
     subprocess.Popen(  # noqa: S603 - fixed argv, and the id is pattern-checked
@@ -109,4 +123,5 @@ __all__ = [
     "local_id_for",
     "sessions_root",
     "spawn_open",
+    "title_for",
 ]

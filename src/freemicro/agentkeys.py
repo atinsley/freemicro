@@ -214,6 +214,9 @@ class AgentKeysConfig:
     keys: Tuple[int, ...] = tuple(range(SLOT_COUNT))
     #: What each key stands for. See :data:`GROUPS`.
     group: str = GROUP_PROJECT
+    #: Prefix each chat's title with its key's number. See
+    #: :mod:`freemicro.chat_titles`.
+    number_titles: bool = False
 
     def __post_init__(self) -> None:
         if len(self.slots) != SLOT_COUNT:  # pragma: no cover - guarded in parse
@@ -290,6 +293,8 @@ class AgentKeysConfig:
             out["keys"] = list(self.keys)
         if self.group != GROUP_PROJECT:
             out["group"] = self.group
+        if self.number_titles:
+            out["number_titles"] = True
         return out
 
 
@@ -306,7 +311,9 @@ def parse_agent_keys(raw: Any) -> AgentKeysConfig:
     if not isinstance(raw, Mapping):
         raise AgentKeysError('"agent_keys" must be an object')
 
-    unknown = set(raw) - {"policy", "slots", "keys", "group", "comment", "_comment"}
+    unknown = set(raw) - {
+        "policy", "slots", "keys", "group", "number_titles", "comment", "_comment",
+    }
     if unknown:
         raise AgentKeysError(
             "agent_keys has unknown field(s): " + ", ".join(sorted(unknown))
@@ -366,7 +373,22 @@ def parse_agent_keys(raw: Any) -> AgentKeysConfig:
             "pinned slots name projects, and a chat key follows one chat"
         )
 
-    return AgentKeysConfig(policy=policy, slots=tuple(slots), keys=keys, group=group)
+    number_titles = raw.get("number_titles", False)
+    if not isinstance(number_titles, bool):
+        raise AgentKeysError("agent_keys.number_titles must be true or false")
+    if number_titles and group != GROUP_CHAT:
+        raise AgentKeysError(
+            'agent_keys.number_titles needs "group": "chat": with project keys, '
+            "several chats share a number"
+        )
+
+    return AgentKeysConfig(
+        policy=policy,
+        slots=tuple(slots),
+        keys=keys,
+        group=group,
+        number_titles=number_titles,
+    )
 
 
 # ---------------------------------------------------------------------------

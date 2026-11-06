@@ -48,6 +48,20 @@ Neither the link nor those records are documented, so an app update could change
 them. If the lookup fails, the key presses `Cmd+Shift+]` for the next chat, while
 the Claude app is in front.
 
+## Numbering chats by key
+
+Add `"number_titles": true` to `agent_keys` to put each chat's key number on its
+title, as `1 · Code audit`. It uses the `sessionTitle` output of the
+`UserPromptSubmit` hook, so it needs no new hook.
+
+- **When it updates:** only when you send that chat a message. A chat that gains or
+  loses a key while idle keeps its old title until then, so two chats can briefly
+  show the same number. The pad itself is always right.
+- **New chats:** the first message gets no number, because the app hasn't made a
+  title yet. The number appears on the next message.
+- **Your own names:** a name you give a chat is kept, with the number in front.
+- **Turning it off:** titles keep their numbers until you rename them.
+
 ## Answering prompts from the pad
 
 Run `freemicro install` to add the `PermissionRequest` hook. While `freemicro run`

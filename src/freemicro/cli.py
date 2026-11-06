@@ -521,7 +521,25 @@ def cmd_hook(args: argparse.Namespace) -> int:
         # failure), then a clean exit. Never a traceback, never nonzero.
         print(f"freemicro hook: {exc}", file=sys.stderr)
     _answer_permission_request(event)
+    _number_chat_title(event)
     return 0
+
+
+def _number_chat_title(event: dict) -> None:
+    """Print a new title for this chat, if it needs one. Stdout is the output."""
+    if not isinstance(event, dict):
+        return
+    if event.get("hook_event_name") != "UserPromptSubmit":
+        return
+    try:
+        from freemicro import chat_titles
+
+        output = chat_titles.title_output(event)
+    except Exception as exc:  # noqa: BLE001 - a hook must never break the agent
+        print(f"freemicro hook: {exc}", file=sys.stderr)
+        return
+    if output is not None:
+        print(json.dumps(output))
 
 
 def _answer_permission_request(event: dict) -> None:
