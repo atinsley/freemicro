@@ -43,6 +43,8 @@ Each key follows one chat: your six most recently active, set by
 `"agent_keys": {"group": "chat"}`. A chat waiting on you or in error always gets a
 key. A chat keeps its key while it stays in the six, and the next one takes it when
 it drops out. Activity means Claude Code doing something, not you looking at a chat.
+SDK sessions, such as scripts using the Agent SDK, aren't tracked, because they have
+no chat to open.
 
 Neither the link nor those records are documented, so an app update could change
 them. If the lookup fails, the key presses `Cmd+Shift+]` for the next chat, while

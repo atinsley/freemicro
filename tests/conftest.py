@@ -22,6 +22,12 @@ def no_hardware(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def interactive_entrypoint(monkeypatch):
+    """The suite may itself run inside an SDK session, which hooks ignore."""
+    monkeypatch.delenv("CLAUDE_CODE_ENTRYPOINT", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def no_desktop_sessions(monkeypatch, tmp_path):
     """Keep tests away from the real Claude app's records and its links."""
     monkeypatch.setattr(
