@@ -18,6 +18,7 @@ EXPECTED = {
     "AG04": ("key", "key", "cmd+shift+i"),
     "AG05": ("key", "key", "cmd+shift+e"),
     "ACT06": ("text", "text", "/fast"),
+    "ACT07": ("key", "key", "cmd+return"),
     "ACT09": ("text", "text", "/branch"),
     "ENC_CLK": ("key", "key", "return"),
 }
@@ -54,11 +55,11 @@ def test_the_profile_stays_out_of_other_apps():
     assert pad.bindings["ACT09"].params["key"] == "cmd+t"
 
 
-def test_approve_is_not_remapped_to_a_blind_keystroke():
-    # The app documents no keyboard answer to a permission card, and a guessed
-    # keystroke could approve or type the wrong thing. APPR stays gated.
+def test_approve_stays_gated_outside_the_claude_app():
+    # Cmd+Enter is only the approve shortcut in the Claude app. Everywhere else
+    # APPR must keep answering the asking session, never send a plain keystroke.
     pad = load_default()
-    assert "ACT07" not in pad.resolve_profile("Claude")
+    assert pad.resolve_profile("Terminal") == {}
     assert pad.bindings["ACT07"].kind == "answer_permission"
 
 

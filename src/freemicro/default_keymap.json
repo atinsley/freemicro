@@ -531,6 +531,11 @@
         "text": "/fast",
         "label": "FAST - types /fast, press CODEX to run"
       },
+      "ACT07": {
+        "action": "key",
+        "key": "cmd+return",
+        "label": "APPR - approve in the chat in front"
+      },
       "ACT09": {
         "action": "text",
         "text": "/branch",
