@@ -319,6 +319,12 @@ flicks back.
 **Full reference: [`docs/CUSTOMIZING.md`](docs/CUSTOMIZING.md).** Every action
 kind, every key name, joystick tuning, LED zones, and the search path.
 
+### Using the Claude desktop app
+
+The default keymap includes a `Claude` profile for sessions in the desktop app,
+which have no terminal tab to jump to. See
+[`docs/CLAUDE-DESKTOP.md`](docs/CLAUDE-DESKTOP.md).
+
 ### The mic key and your dictation app
 
 The mic key is unbound by default, on purpose: a guessed shortcut for an app you

@@ -10,8 +10,8 @@
     "The bindings below match the SIX KEYCAPS THE PAD SHIPS WITH - FAST, APPR,",
     "REJ, SPLIT, MIC, CODEX - so every key does what the cap in your hand says.",
     "Swapped a cap? Change \"keycaps\" below and the web UI redraws the pad.",
-    "Nothing here types words into your agent, and nothing assumes an app you",
-    "may not own.",
+    "Outside the Claude desktop app nothing here types words into your agent,",
+    "and nothing assumes an app you may not own. See docs/CLAUDE-DESKTOP.md.",
     "",
     "CHORDS. A binding key with a + in it binds the two keys pressed TOGETHER,",
     "e.g. \"ACT07+ACT08\". Order does not matter. Two keys only; not the dial",
@@ -64,7 +64,7 @@
     "which a toggle app ignores. \"double_tap\" and \"latch\" are two models of the",
     "same gesture, so they cannot be combined on one binding.",
     "",
-    "PER-APP PROFILES. Optional, and not set below. Add a \"profiles\" object to",
+    "PER-APP PROFILES. One ships below, for the Claude app. A \"profiles\" object can",
     "make one key do different things depending on which app is frontmost. Each",
     "profile is a partial bindings map: it overrides only the keys it names, and",
     "every other key keeps its base binding. For example:",
@@ -493,5 +493,54 @@
       "every few seconds to hold them against the app; it never touches the keys",
       "it does not own. Relies on the firmware doing partial thstatus updates."
     ]
+  },
+  "profiles": {
+    "Claude": {
+      "AG00": {
+        "action": "key",
+        "key": "cmd+shift+[",
+        "label": "previous chat"
+      },
+      "AG01": {
+        "action": "key",
+        "key": "cmd+shift+]",
+        "label": "next chat"
+      },
+      "AG02": {
+        "action": "key",
+        "key": "cmd+n",
+        "label": "new chat"
+      },
+      "AG03": {
+        "action": "key",
+        "key": "cmd+shift+m",
+        "label": "permission mode menu"
+      },
+      "AG04": {
+        "action": "key",
+        "key": "cmd+shift+i",
+        "label": "model menu"
+      },
+      "AG05": {
+        "action": "key",
+        "key": "cmd+shift+e",
+        "label": "effort menu"
+      },
+      "ACT06": {
+        "action": "text",
+        "text": "/fast",
+        "label": "FAST - types /fast, press CODEX to run"
+      },
+      "ACT09": {
+        "action": "text",
+        "text": "/branch",
+        "label": "SPLIT - types /branch, press CODEX to run"
+      },
+      "ENC_CLK": {
+        "action": "key",
+        "key": "return",
+        "label": "dial press - select"
+      }
+    }
   }
 }
