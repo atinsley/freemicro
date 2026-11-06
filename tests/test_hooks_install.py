@@ -140,11 +140,11 @@ def test_install_dry_run_writes_nothing(settings):
     assert "freemicro" in rendered
 
 
-def test_install_survives_a_corrupt_settings_file(settings):
+def test_install_refuses_a_corrupt_settings_file(settings):
     settings.write_text("{ this is not json")
-    hi.install_hooks(settings)
-    data = json.loads(settings.read_text())
-    assert set(data["hooks"]) == set(hi.HOOK_EVENTS)
+    with pytest.raises(hi.SettingsError):
+        hi.install_hooks(settings)
+    assert settings.read_text() == "{ this is not json"
 
 
 # -- uninstall --------------------------------------------------------------

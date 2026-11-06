@@ -83,6 +83,25 @@ def _latest_pypi_version(timeout: float = 4.0) -> "str | None":
         return None
 
 
+def _installed_from_source() -> str:
+    """Where this copy came from if it wasn't PyPI, or ``""`` if it was.
+
+    Python records a direct install, such as an editable clone or a fork from
+    git, in ``direct_url.json``. Those mustn't be upgraded from PyPI, which would
+    swap them for a different project's release.
+    """
+    from importlib import metadata
+    from urllib.parse import unquote, urlparse
+
+    try:
+        raw = metadata.distribution("freemicro").read_text("direct_url.json")
+        url = str(json.loads(raw)["url"]) if raw else ""
+    except Exception:  # noqa: BLE001 - unreadable metadata is not evidence of a fork
+        return ""
+    parsed = urlparse(url)
+    return unquote(parsed.path) if parsed.scheme == "file" else url
+
+
 def _installed_with_pipx() -> bool:
     """Did pipx install this copy? True if the package lives under a pipx venv."""
     import freemicro
@@ -96,6 +115,13 @@ def cmd_update(args: argparse.Namespace) -> int:
     import subprocess
 
     print(f"  installed: freemicro {__version__}")
+    source = _installed_from_source()
+    if source:
+        print(f"  from:      {source}")
+        print("\n  This copy wasn't installed from PyPI, so `freemicro update` "
+              "leaves it alone.\n  Update it from its source instead, for "
+              "example with `git pull`.")
+        return 0
     latest = _latest_pypi_version()
     if latest is None:
         print("  latest:    could not reach PyPI (offline?)")
@@ -179,6 +205,16 @@ def cmd_detect(args: argparse.Namespace) -> int:
 
 
 def cmd_install(args: argparse.Namespace) -> int:
+    from freemicro import hooks_install
+
+    try:
+        return _run_install(args)
+    except hooks_install.SettingsError as exc:
+        print(f"{exc}\nYour settings were not changed.", file=sys.stderr)
+        return 2
+
+
+def _run_install(args: argparse.Namespace) -> int:
     from freemicro import hooks_install
 
     if args.uninstall:
@@ -967,7 +1003,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print("Pad held by: nobody")
     if not state["installed"]:
         if state["protected_location"]:
-            print(f"\n  Note: this binary lives under ~/{state['protected_location']}"
+            print(f"\n  Note: FreeMicro lives under ~/{state['protected_location']}"
                   ", which macOS\n  will not let a background agent read. See "
                   "`freemicro daemon install`.")
         print("\n  freemicro daemon install    start it at login")

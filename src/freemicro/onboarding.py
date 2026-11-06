@@ -352,7 +352,11 @@ def step_hooks(answers: Answers) -> bool:
                    override=answers.hooks):
             _note("Skipped. `freemicro install` when you want it.")
             return False
-        written = hooks_install.install_hooks()
+        try:
+            written = hooks_install.install_hooks()
+        except hooks_install.SettingsError as exc:
+            _note(f"{exc} Your settings were not changed.")
+            return False
         _ok(f"written to {written}")
         _note(f"command: {hooks_install.hook_command()}")
 

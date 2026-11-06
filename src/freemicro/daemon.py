@@ -261,8 +261,19 @@ def daemon_argv() -> List[str]:
 _PROTECTED_DIRS = ("Desktop", "Documents", "Downloads")
 
 
+def _source_dir() -> Path:
+    """Where this process's code lives, which an editable install keeps elsewhere."""
+    import freemicro
+
+    return Path(freemicro.__file__).parent
+
+
 def protected_location(path: Optional[Path] = None) -> Optional[str]:
-    """Name of the TCC-protected folder ``path`` lives in, if any.
+    """Name of the TCC-protected folder FreeMicro lives in, if any.
+
+    With no ``path``, checks both the launcher and the code. An editable install
+    keeps its launcher in a virtualenv that may be fine while the code it imports
+    sits in ``~/Documents``, and the agent can't read that either.
 
     A launchd agent runs with no TCC grants for the user's Desktop, Documents
     or Downloads. Point one at a virtualenv inside those and it dies before
@@ -271,8 +282,9 @@ def protected_location(path: Optional[Path] = None) -> Optional[str]:
     because the log message is genuinely unguessable.
     """
     if path is None:
-        argv = daemon_argv()
-        path = Path(argv[0])
+        return protected_location(Path(daemon_argv()[0])) or protected_location(
+            _source_dir()
+        )
     try:
         resolved = Path(path).resolve()
         home = Path.home().resolve()
@@ -451,7 +463,11 @@ def _install(
     the *other* launcher already installed (two owners for one pad). ``force``
     overrides both, for anyone who has arranged things some other way.
     """
-    folder = protected_location(Path(argv[0]) if argv else None)
+    # Checked separately because `argv` only says where the launcher is, and an
+    # editable install's code can be somewhere else entirely.
+    folder = protected_location(
+        Path(argv[0]) if argv else None
+    ) or protected_location(_source_dir())
     if folder and not force:
         return {
             "ok": False,
@@ -460,7 +476,7 @@ def _install(
             "warning": folder,
             "conflict": None,
             "error": (
-                f"the freemicro binary is under ~/{folder}, which macOS does "
+                f"FreeMicro is under ~/{folder}, which macOS does "
                 "not let\n  background agents read - launchd would respawn it "
                 "forever without it\n  ever starting. Install FreeMicro "
                 "somewhere unprotected first:\n"

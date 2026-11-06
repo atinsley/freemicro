@@ -26,6 +26,7 @@ import os
 import shlex
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -126,6 +127,10 @@ def hook_command() -> str:
 
 # Kept for backwards compatibility / display; the installer uses hook_command().
 HOOK_COMMAND = "freemicro hook"
+
+
+class SettingsError(OSError):
+    """The settings file can't safely be rewritten, so nothing was changed."""
 
 
 def default_settings_path() -> Path:
@@ -237,7 +242,12 @@ def strip_settings(existing: dict) -> dict:
 
 
 def read_settings(settings_path: Union[str, Path, None] = None) -> Tuple[Path, dict]:
-    """Load Claude Code's settings, tolerating a missing or broken file."""
+    """Load Claude Code's settings, tolerating a missing or broken file.
+
+    For reporting only. Anything that will write the file back must use
+    :func:`_read_for_rewrite`, because treating a broken file as empty and then
+    saving it would erase everything in it.
+    """
     path = Path(settings_path) if settings_path else default_settings_path()
     if not path.exists():
         return path, {}
@@ -246,6 +256,53 @@ def read_settings(settings_path: Union[str, Path, None] = None) -> Tuple[Path, d
     except (OSError, ValueError):
         return path, {}
     return path, data if isinstance(data, dict) else {}
+
+
+def _read_for_rewrite(settings_path: Union[str, Path, None]) -> Tuple[Path, dict]:
+    """Load the settings we are about to rewrite, or refuse.
+
+    A missing or blank file is a fresh start. Anything else we can't read as a
+    JSON object holds the user's settings in a form we don't understand.
+    """
+    path = Path(settings_path) if settings_path else default_settings_path()
+    if not path.exists():
+        return path, {}
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise SettingsError(f"Could not read {path}: {exc}") from exc
+    if not text.strip():
+        return path, {}
+    try:
+        data = json.loads(text)
+    except ValueError as exc:
+        raise SettingsError(
+            f"{path} isn't valid JSON ({exc}). Fix it and try again."
+        ) from exc
+    if not isinstance(data, dict):
+        raise SettingsError(
+            f"{path} isn't a JSON object. Fix it and try again."
+        )
+    return path, data
+
+
+def _write_settings(path: Path, rendered: str) -> None:
+    """Replace the file in one step, so a failure can't leave half of it behind."""
+    target = path.resolve()  # Replacing a symlink would orphan the file it points at.
+    target.parent.mkdir(parents=True, exist_ok=True)
+    mode = target.stat().st_mode & 0o777 if target.exists() else 0o600
+    fd, temp = tempfile.mkstemp(dir=str(target.parent), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(rendered + "\n")
+        os.chmod(temp, mode)
+        os.replace(temp, target)
+    except BaseException:
+        try:
+            os.unlink(temp)
+        except OSError:
+            pass
+        raise
 
 
 def installed_commands(settings: dict) -> Dict[str, str]:
@@ -300,15 +357,14 @@ def install_hooks(
     Returns the path written, or - for a dry run - the JSON that *would* be
     written.
     """
-    path, existing = read_settings(settings_path)
+    path, existing = _read_for_rewrite(settings_path)
     merged = build_settings(existing, command=command)
-    rendered = json.dumps(merged, indent=2)
+    rendered = json.dumps(merged, indent=2, ensure_ascii=False)
 
     if dry_run:
         return rendered
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(rendered + "\n", encoding="utf-8")
+    _write_settings(path, rendered)
     return str(path)
 
 
@@ -316,13 +372,12 @@ def uninstall_hooks(
     settings_path: Union[str, Path, None] = None, dry_run: bool = False
 ):
     """Remove every FreeMicro hook entry. Returns ``(path_or_json, removed)``."""
-    path, existing = read_settings(settings_path)
+    path, existing = _read_for_rewrite(settings_path)
     before = len(installed_commands(existing))
     stripped = strip_settings(existing)
-    rendered = json.dumps(stripped, indent=2)
+    rendered = json.dumps(stripped, indent=2, ensure_ascii=False)
     if dry_run:
         return rendered, before
     if before:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(rendered + "\n", encoding="utf-8")
+        _write_settings(path, rendered)
     return str(path), before

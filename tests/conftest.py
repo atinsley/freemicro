@@ -8,6 +8,8 @@ the whole session and every action test uses a recording backend.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from freemicro.device import ENV_NO_DEVICE
@@ -17,6 +19,21 @@ from freemicro.device import ENV_NO_DEVICE
 def no_hardware(monkeypatch):
     """Make the pad look absent to every test."""
     monkeypatch.setenv(ENV_NO_DEVICE, "1")
+
+
+@pytest.fixture(autouse=True)
+def no_launchd(monkeypatch):
+    """No test may register a real job with launchd. Tests can still override this."""
+    monkeypatch.setattr(
+        "freemicro.daemon._launchctl",
+        lambda *args, **kwargs: (1, "launchctl is disabled in tests"),
+    )
+
+
+@pytest.fixture(autouse=True)
+def source_outside_protected_folders(monkeypatch):
+    """A clone under ``~/Documents`` must not change what the daemon tests see."""
+    monkeypatch.setattr("freemicro.daemon._source_dir", lambda: Path("/opt/freemicro"))
 
 
 @pytest.fixture(autouse=True)
