@@ -2061,7 +2061,7 @@ def _print_dispatch(result) -> None:
 
 def cmd_lights(args: argparse.Namespace) -> int:
     """Send lighting straight to the pad - the LED smoke test."""
-    from freemicro.device import close_shared
+    from freemicro.device import DeviceError, close_shared
     from freemicro.device.lighting import LightingError
     from freemicro.renderers.micro_leds import MicroLedsRenderer
 
@@ -2120,11 +2120,18 @@ def cmd_lights(args: argparse.Namespace) -> int:
             time.sleep(args.hold)
     except KeyboardInterrupt:
         pass
+    except DeviceError as exc:
+        print(f"Could not reach the pad: {exc}\nPress a key on it to wake it, "
+              "then try again.", file=sys.stderr)
+        return 1
     finally:
-        if args.restore:
-            renderer.close()
-        else:
-            close_shared()
+        try:
+            if args.restore:
+                renderer.close()
+            else:
+                close_shared()
+        except DeviceError:
+            pass  # The pad has already gone, so there's nothing left to restore.
     return 0
 
 
