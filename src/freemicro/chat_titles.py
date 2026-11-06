@@ -11,6 +11,9 @@ A new chat is skipped until the app has given it a title, because setting one th
 early might stop the app generating its own. The app's record is the first choice
 for the title, since it reflects a rename made in the app.
 
+A chat started through Remote Control is skipped too. Its transcript takes the new
+title, but the app keeps showing the old one, so the two would only disagree.
+
 Turned on with ``"agent_keys": {"group": "chat", "number_titles": true}``.
 """
 
@@ -54,6 +57,8 @@ def title_output(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if permission_requests.is_non_interactive():
         return None
     session_id = session_id_of(event)
+    if desktop_sessions.started_by_remote_control(session_id):
+        return None
     title = desktop_sessions.title_for(session_id) or str(
         event.get("session_title") or ""
     ).strip()

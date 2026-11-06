@@ -251,3 +251,41 @@ def test_a_broken_keymap_never_gets_in_the_way_of_a_prompt(setup, monkeypatch, c
     monkeypatch.setattr(padconfig, "load", boom)
     code, out = _run_hook(monkeypatch, capsys, _event())
     assert (code, out) == (0, "")
+
+
+# -- Remote Control chats ---------------------------------------------------------
+
+
+def _remote_control_record(root, spawn):
+    path = root() / "account" / "org" / f"{LOCAL_ID}.json"
+    path.write_text(json.dumps({
+        "sessionId": LOCAL_ID, "cliSessionId": CLI_ID, "isArchived": False,
+        "title": "Home Assistant audit", "remoteControlSpawn": spawn,
+    }), encoding="utf-8")
+
+
+def test_a_remote_control_chat_is_recognised(setup):
+    _remote_control_record(desktop_sessions.sessions_root, {"ccrSessionId": "cse_1"})
+    assert desktop_sessions.started_by_remote_control(CLI_ID) is True
+
+
+def test_an_ordinary_chat_is_not(setup):
+    assert desktop_sessions.started_by_remote_control(CLI_ID) is False
+
+
+def test_an_unknown_chat_is_not(setup):
+    assert desktop_sessions.started_by_remote_control("unknown") is False
+
+
+def test_a_remote_control_chat_gets_no_title_because_the_app_ignores_it(setup):
+    _remote_control_record(desktop_sessions.sessions_root, {"ccrSessionId": "cse_1"})
+    assert chat_titles.title_output(_event()) is None
+
+
+def test_it_is_skipped_even_when_only_a_session_title_is_known(setup):
+    path = desktop_sessions.sessions_root() / "account" / "org" / f"{LOCAL_ID}.json"
+    path.write_text(json.dumps({
+        "sessionId": LOCAL_ID, "cliSessionId": CLI_ID, "isArchived": False,
+        "remoteControlSpawn": {"ccrSessionId": "cse_1"},
+    }), encoding="utf-8")
+    assert chat_titles.title_output(_event(session_title="Named")) is None

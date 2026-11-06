@@ -106,6 +106,14 @@ def title_for(session_id: str) -> str:
     return title.strip() if isinstance(title, str) else ""
 
 
+def started_by_remote_control(session_id: str) -> bool:
+    """Was this chat started through Remote Control? Never raises."""
+    if not local_id_for(session_id):
+        return False
+    record = _record_in(_found[session_id], session_id)
+    return bool(record and record.get("remoteControlSpawn"))
+
+
 def spawn_open(url: str) -> None:
     """Hand a link to macOS. Not waited on, because this runs on the key path."""
     subprocess.Popen(  # noqa: S603 - fixed argv, and the id is pattern-checked
@@ -123,5 +131,6 @@ __all__ = [
     "local_id_for",
     "sessions_root",
     "spawn_open",
+    "started_by_remote_control",
     "title_for",
 ]

@@ -62,6 +62,8 @@ title, as `1 · Code audit`. It uses the `sessionTitle` output of the
 - **New chats:** the first message gets no number, because the app hasn't made a
   title yet. The number appears on the next message.
 - **Your own names:** a name you give a chat is kept, with the number in front.
+- **Remote Control chats:** a chat started through Remote Control, such as from a
+  phone, gets no number, because the app ignores the rename. Its key still works.
 - **Turning it off:** titles keep their numbers until you rename them.
 
 ## Answering prompts from the pad
