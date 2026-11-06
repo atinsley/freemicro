@@ -19,7 +19,7 @@ Status lighting is unaffected, because hooks fire in the desktop app too.
 | `ACT06` | FAST | Toggle fast mode | Types `/fast`; press CODEX to run | Not documented for the app |
 | `ACT07` | APPR | Approve | Approve the newest waiting prompt; hold for "always"; otherwise `Cmd+Enter` | Permission hook; `Cmd+Enter` reported by a user |
 | `ACT08` | REJ | Decline | Decline the newest waiting prompt; otherwise Esc, which stops Claude's response | Permission hook |
-| `ACT09` | SPLIT | Fork thread | Types `/branch`; press CODEX to run | Not documented for the app |
+| `ACT09` | SPLIT | Fork thread | Types `/fork`; press CODEX to run | Confirmed by a user |
 | `ACT10` | MIC | Push to talk | Your dictation app's hold shortcut | Bind it in `freemicro config --web` |
 | `ACT12` | CODEX | Submit | Return | Standard |
 | `ENC_CW` / `ENC_CC` | Dial | Previous / next control | Up / down arrow | Standard |

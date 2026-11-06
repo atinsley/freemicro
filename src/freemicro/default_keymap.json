@@ -561,8 +561,8 @@
       },
       "ACT09": {
         "action": "text",
-        "text": "/branch",
-        "label": "SPLIT - types /branch, press CODEX to run"
+        "text": "/fork",
+        "label": "SPLIT - types /fork, press CODEX to run"
       },
       "ENC_CLK": {
         "action": "key",

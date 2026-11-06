@@ -2047,6 +2047,10 @@ def _describe_config_changes(old, new) -> str:
         parts.append(f"agent keys: {new.agent_keys.policy}")
     if old.joystick != new.joystick:
         parts.append("joystick retuned")
+    if old.profiles != new.profiles:
+        parts.append("profiles changed")
+    if old.layers != new.layers:
+        parts.append("layers changed")
     return ", ".join(parts) if parts else "no functional changes"
 
 

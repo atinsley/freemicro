@@ -7,7 +7,8 @@ frontmost, and that nothing leaks into other apps.
 
 from __future__ import annotations
 
-from freemicro.padconfig import load_default
+from freemicro import cli
+from freemicro.padconfig import load_default, parse
 
 #: input id -> (action kind, the parameter that defines it, its value)
 EXPECTED = {
@@ -20,7 +21,7 @@ EXPECTED = {
     "ACT06": ("text", "text", "/fast"),
     "ACT07": ("answer_permission", "answer", "approve"),
     "ACT08": ("answer_permission", "answer", "reject"),
-    "ACT09": ("text", "text", "/branch"),
+    "ACT09": ("text", "text", "/fork"),
     "ENC_CLK": ("key", "key", "return"),
 }
 
@@ -64,3 +65,21 @@ def test_approve_is_never_a_blind_keystroke():
 
 def test_the_default_keymap_still_loads_without_warnings():
     assert load_default().warnings == ()
+
+
+def test_a_reload_reports_a_changed_profile_or_layer():
+    key = {"action": "key", "key": "a"}
+    other = {"action": "key", "key": "b"}
+
+    def config(profile_key, layer_key):
+        return parse({
+            "version": 1,
+            "bindings": {},
+            "profiles": {"Claude": {"ACT09": profile_key}},
+            "layers": {"fn": {"ACT09": layer_key}},
+        })
+
+    old = config(key, key)
+    assert "profiles changed" in cli._describe_config_changes(old, config(other, key))
+    assert "layers changed" in cli._describe_config_changes(old, config(key, other))
+    assert cli._describe_config_changes(old, config(key, key)) == "no functional changes"
