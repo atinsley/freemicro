@@ -2010,6 +2010,9 @@ def cmd_lights(args: argparse.Namespace) -> int:
         )
         return _set_lighting_zones(args, zones)
 
+    if args.spin:
+        return _set_spin_on_hold(args)
+
     if args.enable or args.disable:
         return _set_lighting_enabled(args, enabled=bool(args.enable))
 
@@ -2082,6 +2085,39 @@ def _edit_lighting(args: argparse.Namespace, **changes) -> int:
     lighting.update(changes)
     target.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     print(f"Updated {target}")
+    return 0
+
+
+def _set_spin_on_hold(args: argparse.Namespace) -> int:
+    """Turn the rainbow on held push-to-talk keys on or off, persistently.
+
+    A running ``freemicro run`` reloads the config, so this takes effect on the
+    next press without a restart.
+    """
+    from freemicro import padconfig
+
+    target = Path(args.config).expanduser() if args.config else padconfig.user_path()
+    lighting: dict = {}
+    if target.exists():
+        try:
+            data = json.loads(target.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print(f"Could not read {target}: {exc}", file=sys.stderr)
+            return 2
+        if isinstance(data.get("lighting"), dict):
+            lighting = data["lighting"]
+
+    if args.spin == "toggle":
+        enabled = lighting.get("spin_on_hold") is not True
+    else:
+        enabled = args.spin == "on"
+    result = _edit_lighting(args, spin_on_hold=enabled)
+    if result != 0:
+        return result
+
+    print(f"Spin on push-to-talk is {'on' if enabled else 'off'}.")
+    if enabled and lighting.get("enabled") is not True:
+        print("The LEDs are off, so it won't show until: freemicro lights --enable")
     return 0
 
 
@@ -2796,6 +2832,9 @@ def build_parser() -> argparse.ArgumentParser:
     lt.add_argument("--zones",
                     help="which zones FreeMicro drives, comma separated "
                          "(agent_keys, backlight, underglow)")
+    lt.add_argument("--spin", choices=("on", "off", "toggle"),
+                    help="show a rainbow on the underglow while a push-to-talk "
+                         "(hold) key is held")
     lt.add_argument("--cycle", action="store_true",
                     help="walk every state in turn")
     lt.add_argument("--color", help="override the colour (#RRGGBB)")

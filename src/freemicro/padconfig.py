@@ -834,6 +834,25 @@ def factory_recording_light() -> ActivityLight:
     )
 
 
+#: How fast the firmware's ``rainbow`` runs while ``lighting.spin_on_hold`` is on.
+SPIN_SPEED = 0.8
+
+
+def spin_light() -> ActivityLight:
+    """The look of a held push-to-talk key in spin mode: a rainbow underglow.
+
+    Underglow only, like the factory recording light, so the Agent Keys go on
+    showing their projects. ``rainbow`` ignores the colour; it is here because
+    an :class:`ActivityLight` has to have one.
+    """
+    return ActivityLight(
+        color=parse_color(FACTORY_RECORDING),
+        effect=parse_effect("rainbow"),
+        brightness=1.0,
+        speed=SPIN_SPEED,
+    )
+
+
 @dataclass(frozen=True)
 class ReassertConfig:
     """When FreeMicro re-sends the lighting it already sent.
@@ -973,6 +992,10 @@ class LightingConfig:
     #: itself off after three minutes is not a notification. Set it to ``true``
     #: for exact factory behaviour.
     auto_dim_alerts: bool = False
+    #: Show :func:`spin_light` on every ``hold`` key while it is held, in place
+    #: of that binding's own ``light``. Applied when the config loads, so turning
+    #: it off brings each binding's own light straight back.
+    spin_on_hold: bool = False
 
     def for_state(self, state: AgentState) -> Optional[StateLight]:
         """The look this config sets for ``state``, or ``None`` if it sets none."""
@@ -1721,6 +1744,9 @@ def _parse_lighting(raw: Any) -> LightingConfig:
             f"lighting.method must be one of {', '.join(LIGHTING_METHODS)}"
         )
     auto_dim = _parse_auto_dim(raw.get("auto_dim_seconds", defaults.auto_dim_seconds))
+    spin_on_hold = raw.get("spin_on_hold", defaults.spin_on_hold)
+    if not isinstance(spin_on_hold, bool):
+        raise PadConfigError("lighting.spin_on_hold must be true or false")
     theme = str(raw.get("theme", defaults.theme) or "").strip().lower()
     if theme and theme not in THEMES:
         raise PadConfigError(
@@ -1752,7 +1778,16 @@ def _parse_lighting(raw: Any) -> LightingConfig:
         reassert=_parse_reassert(raw.get("reassert")),
         auto_dim_seconds=auto_dim,
         auto_dim_alerts=bool(raw.get("auto_dim_alerts", defaults.auto_dim_alerts)),
+        spin_on_hold=spin_on_hold,
     )
+
+
+def _with_spin(actions: Mapping[Any, Action]) -> Dict[Any, Action]:
+    """``actions`` with every ``hold`` showing :func:`spin_light`."""
+    return {
+        key: replace(action, light=spin_light()) if action.kind == "hold" else action
+        for key, action in actions.items()
+    }
 
 
 def _parse_agent_keys(raw: Any, warnings: List[str]) -> AgentKeysConfig:
@@ -1881,6 +1916,12 @@ def parse(data: Any, source: Optional[Path] = None) -> PadConfig:
     # profiles and layers) and the layer names are both in scope, rather than
     # failing silently the first time the key is held.
     _check_layer_references(bindings, profiles, layers, warnings)
+
+    if lighting.spin_on_hold:
+        bindings = _with_spin(bindings)
+        chords = _with_spin(chords)
+        profiles = {name: _with_spin(keys) for name, keys in profiles.items()}
+        layers = {name: _with_spin(keys) for name, keys in layers.items()}
 
     # A binding on an Agent Key that agent_keys.keys leaves to Codex will never
     # fire - the split covers presses, not just lighting - so it is surfaced
@@ -2062,6 +2103,7 @@ __all__ = [
     "THEMES",
     "THEME_NAMES",
     "factory_recording_light",
+    "spin_light",
     "theme_light",
     "CHORD_MAX_KEYS",
     "CHORD_SEPARATOR",

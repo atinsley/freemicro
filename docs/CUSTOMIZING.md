@@ -469,6 +469,25 @@ Push-to-talk with no light is a key you have to trust. Give the binding a
 you pick a hold-style dictation app. `freemicro keys --list` prints every light
 in your config and exactly when each one goes out.
 
+#### Spin mode
+
+To show a rainbow on the underglow while you hold push-to-talk, turn on spin mode:
+
+```sh
+freemicro lights --spin on       # or: off, toggle
+```
+
+This saves `lighting.spin_on_hold` in your config, and a running `freemicro run`
+picks it up without a restart. While it's on, every `hold` key spins in place of
+its own `light`, in every profile and layer. Turning it off brings each key's own
+light back. The Agent Keys keep showing your projects either way.
+
+To flip it from the pad, bind a spare key to a shell action:
+
+```json
+"ACT09": { "action": "shell", "command": "freemicro lights --spin toggle" }
+```
+
 **This is not the mic key's feature.** Any binding may carry a `light`: hold a
 key while a slow shell command runs, make a key a torch, mark whichever key you
 are most likely to press by accident. The mic is just the one the default ships.
