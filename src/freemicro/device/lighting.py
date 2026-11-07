@@ -202,14 +202,19 @@ def parse_zone(value: str) -> str:
 
 
 def _unit(value: float, field: str) -> float:
-    """Validate a 0-1 float (brightness, speed, magic)."""
+    """Validate a 0-1 number (brightness, speed, magic), in its shortest form.
+
+    Whole numbers go out as ``1`` rather than ``1.0``, as the vendor app's
+    JavaScript sends them. Every byte counts on Bluetooth, where each report can
+    stall for about 360 ms.
+    """
     try:
         number = float(value)
     except (TypeError, ValueError):
         raise LightingError(f"{field} must be a number between 0 and 1") from None
     if not 0.0 <= number <= 1.0:
         raise LightingError(f"{field} must be between 0 and 1, got {number}")
-    return number
+    return int(number) if number.is_integer() else number
 
 
 # ---------------------------------------------------------------------------

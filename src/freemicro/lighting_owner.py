@@ -436,6 +436,98 @@ class LightingEvent:
     verbose_only: bool = False
 
 
+class LightingWorker:
+    """Writes lighting on its own thread, so a slow write never holds up a key.
+
+    A Bluetooth write can take over a second, and the thread that would otherwise
+    make it is the one reading key events. Only the newest frame is kept, so a
+    press and release during a slow write don't queue up behind it.
+
+    The renderer's state is otherwise only touched by this thread, apart from the
+    run loop asking it to send everything again. The worst that race can cost is
+    one reassert, which the next one makes up for.
+    """
+
+    def __init__(self, renderers: Callable[[], Sequence[Any]]) -> None:
+        self._renderers = renderers
+        self._wake = threading.Condition()
+        self._job: tuple[Any, Any, Any] | None = None
+        self._stopping = False
+        self._thread = threading.Thread(
+            target=self._run, name="freemicro-lighting", daemon=True
+        )
+        self._thread.start()
+
+    def paint(self, state: Any, sessions: Any, light: Any | None) -> None:
+        """Ask for this frame, replacing any not yet started. Returns at once."""
+        with self._wake:
+            self._job = (state, sessions, light)
+            self._wake.notify()
+
+    def stop(self, timeout: float = 3.0) -> None:
+        """Finish what was last asked for, then end. Safe to call twice."""
+        with self._wake:
+            self._stopping = True
+            self._wake.notify()
+        self._thread.join(timeout)
+
+    def _run(self) -> None:
+        while True:
+            with self._wake:
+                while self._job is None and not self._stopping:
+                    self._wake.wait()
+                job, self._job = self._job, None
+            if job is None:
+                return
+            self._paint(*job)
+
+    def _paint(self, state: Any, sessions: Any, light: Any | None) -> None:
+        try:
+            for renderer in self._renderers():
+                set_overlay = getattr(renderer, "set_overlay", None)
+                if callable(set_overlay):
+                    set_overlay(light)
+                renderer.render(state, sessions)
+        except Exception as exc:  # noqa: BLE001 - the next frame gets another try
+            print(f"  [lighting] couldn't repaint: {exc}", flush=True)
+
+
+class OnDemandPainter:
+    """Paints a held key's light as soon as it changes, not on the next tick.
+
+    The tick stays as the backstop for what no key event announces, such as the
+    overlay's timeout. Called from the thread reading key events, so it only asks
+    for the frame: :class:`LightingWorker` does the writing.
+    """
+
+    def __init__(
+        self,
+        overlay: ActivityOverlay,
+        read_state: Callable[[], tuple[Any, Any]],
+        paint: Callable[[Any, Any, Any], None],
+    ) -> None:
+        self._overlay = overlay
+        self._read_state = read_state
+        self._paint = paint
+        self._shown: Any | None = None
+
+    def shown_by_tick(self, light: Any | None) -> None:
+        """The tick has just asked for this, so it needn't be asked for again."""
+        self._shown = light
+
+    def paint_if_changed(self) -> None:
+        """Ask for a repaint if the held light changed. Never raises."""
+        live = self._overlay.current
+        if live is self._shown:
+            return
+        self._shown = live
+        try:
+            state, sessions = self._read_state()
+            self._paint(state, sessions, live)
+        except Exception as exc:  # noqa: BLE001 - the next tick paints it anyway
+            print(f"  [lighting] couldn't repaint: {exc}", flush=True)
+
+
 class ActivityOverlay:
     """Which live binding, if any, is currently colouring the pad.
 
@@ -860,6 +952,8 @@ class LightingOwner:
 
 
 __all__ = [
+    "LightingWorker",
+    "OnDemandPainter",
     "CAPABILITIES",
     "CAPABILITY_INPUT",
     "CAPABILITY_LIGHTING",

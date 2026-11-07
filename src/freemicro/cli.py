@@ -2490,6 +2490,8 @@ def _run_pipeline(
         REASON_CONFIG_BROKEN,
         ActivityOverlay,
         LightingOwner,
+        LightingWorker,
+        OnDemandPainter,
         coexist_advice,
         vendor_app_running,
     )
@@ -2664,6 +2666,8 @@ def _run_pipeline(
 
     housekeeping = [time.time()]
     battery_watch = BatteryWatch()
+    worker = LightingWorker(lambda: renderers)
+    painter = OnDemandPainter(overlay, store.resolved_and_sessions, worker.paint)
 
     def tick() -> None:
         nonlocal last
@@ -2717,11 +2721,8 @@ def _run_pipeline(
         # separate reads that disagree.
         state, sessions = store.resolved_and_sessions()
         live = overlay.current
-        for renderer in renderers:
-            set_overlay = getattr(renderer, "set_overlay", None)
-            if callable(set_overlay):
-                set_overlay(live)
-            renderer.render(state, sessions)
+        painter.shown_by_tick(live)
+        worker.paint(state, sessions, live)
         if state != last:
             # Unconditional. This one line is the whole of what the screen
             # renderer ever delivered, and it is the only thing that tells you
@@ -2747,6 +2748,7 @@ def _run_pipeline(
         owner.note_input()
         for result in bridge.handle(message):
             _print_dispatch(result)
+        painter.paint_if_changed()
 
     # run_with_reconnect covers "no pad yet" as well as "pad went away", so the
     # command is useful before you plug in and survives every drop afterwards.
@@ -2770,6 +2772,8 @@ def _run_pipeline(
         # `hold` binding leaves real modifier keys down, and a restart
         # re-execs without ever running atexit. See Bridge.close().
         bridge.close()
+        # Before the renderers close, so nothing repaints a pad being handed back.
+        worker.stop()
         for renderer in renderers:
             renderer.close()
         close_shared()
@@ -2964,7 +2968,7 @@ def build_parser() -> argparse.ArgumentParser:
                     help="which zones FreeMicro drives, comma separated "
                          "(agent_keys, backlight, underglow)")
     lt.add_argument("--spin", choices=("on", "off", "toggle"),
-                    help="show a rainbow on the underglow while a push-to-talk "
+                    help="show a rainbow on the whole pad while a push-to-talk "
                          "(hold) key is held")
     lt.add_argument("--cycle", action="store_true",
                     help="walk every state in turn")

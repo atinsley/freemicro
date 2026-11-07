@@ -458,7 +458,8 @@ def test_the_state_still_changes_underneath_a_held_key():
     renderer.render(AgentState.IDLE)
     device.sent.clear()
     renderer.render(AgentState.ERROR)
-    assert _ambient(device.sent)["c"] == factory_recording_light().color
+    # The layer's zone hasn't changed, so it isn't written again and keeps its look.
+    assert _ambient(device.sent) is None
     assert _agent_keys(device.sent)[0]["c"] == (
         renderer.light_for(AgentState.ERROR).color
     )
@@ -581,6 +582,21 @@ def test_an_explicit_preview_look_stays_on_the_zones_it_was_asked_about():
 # The run loop, wired the way `freemicro run` wires it
 # ---------------------------------------------------------------------------
 
+class _SyncWorker:
+    """Paints before returning, so these tests can look straight after a tick."""
+
+    def __init__(self, renderers):
+        self._renderers = renderers
+
+    def paint(self, state, sessions, light):
+        for renderer in self._renderers():
+            renderer.set_overlay(light)
+            renderer.render(state, sessions)
+
+    def stop(self, timeout=3.0):
+        pass
+
+
 class _Loop:
     """Stands in for ``run_with_reconnect`` and hands back its callbacks.
 
@@ -626,6 +642,7 @@ def pipeline(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "_open_pad", lambda headless=False: pad)
     monkeypatch.setattr(device_module, "run_with_reconnect", loop)
     monkeypatch.setattr(device_module, "close_shared", lambda: None)
+    monkeypatch.setattr("freemicro.lighting_owner.LightingWorker", _SyncWorker)
     args = Namespace(config=str(path), dry_run=True, verbose=False,
                      interval=0.25, seconds=0.0)
     assert cli._run_pipeline(args) == 0
@@ -636,6 +653,19 @@ def pipeline(tmp_path, monkeypatch):
 
 def _press(loop, key, act=1):
     loop.handle({"m": "v.oai.hid", "p": {"k": key, "act": act}})
+
+
+def test_a_press_and_release_repaint_without_waiting_for_a_tick(pipeline):
+    loop, pad, _clock = pipeline
+    loop.tick()
+    pad.sent.clear()
+    _press(loop, "ACT10")
+    lit = _ambient(pad.sent)
+    assert lit is not None and lit["e"] != 0
+    pad.sent.clear()
+    _press(loop, "ACT10", act=0)
+    off = _ambient(pad.sent)
+    assert off is not None and off["e"] == 0
 
 
 def test_run_lights_the_pad_while_the_mic_key_is_held(pipeline):

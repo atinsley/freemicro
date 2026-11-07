@@ -397,7 +397,7 @@
     "spin_on_hold": false,
     "_comment": [
       "enabled=false by default: opt in with `freemicro lights --enable`.",
-      "spin_on_hold shows a rainbow on the underglow while a push-to-talk (hold)",
+      "spin_on_hold shows a rainbow on the whole pad while a push-to-talk (hold)",
       "key is held. Flip it with `freemicro lights --spin on|off|toggle`.",
       "Colours are the exact factory integers from docs/FACTORY-DEFAULTS.md.",
       "Note 'done' is the factory's UNREAD colour - it is meant to clear once",

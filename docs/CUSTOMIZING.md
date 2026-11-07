@@ -471,7 +471,7 @@ in your config and exactly when each one goes out.
 
 #### Spin mode
 
-To show a rainbow on the underglow while you hold push-to-talk, turn on spin mode:
+To turn the whole pad into a rainbow while you hold push-to-talk, turn on spin mode:
 
 ```sh
 freemicro lights --spin on       # or: off, toggle
@@ -480,7 +480,14 @@ freemicro lights --spin on       # or: off, toggle
 This saves `lighting.spin_on_hold` in your config, and a running `freemicro run`
 picks it up without a restart. While it's on, every `hold` key spins in place of
 its own `light`, in every profile and layer. Turning it off brings each key's own
-light back. The Agent Keys keep showing your projects either way.
+light back. The rainbow covers the ring, the under-cap lights and the Agent Keys,
+so the Agent Keys stop showing your projects while you hold. When you let go, each
+one shows its project's state as it is at that moment.
+
+The lights change as soon as you press and let go, all in one message, so they stay
+in step. Over USB that's instant. Over Bluetooth the message can take up to about
+a second to reach the pad, because each report can stall on the link. Your keys
+don't wait for it, since lighting is written on its own thread.
 
 To flip it from the pad, bind a spare key to a shell action:
 

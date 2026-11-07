@@ -27,6 +27,7 @@ import ctypes
 import ctypes.util
 import json
 import sys
+import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -51,6 +52,9 @@ EVENT_KEY = "v.oai.hid"
 EVENT_JOYSTICK = "v.oai.rad"
 
 _REPORT_TYPE_OUTPUT = 1  # kIOHIDReportTypeOutput
+
+#: How long :meth:`Device.close` waits for a write in progress to return.
+CLOSE_WAIT_SECONDS = 3.0
 
 #: Values of the IOHIDDevice ``Transport`` property we care about.
 TRANSPORT_USB = "USB"
@@ -324,6 +328,9 @@ class Device:
     def __init__(self, ref: Any, transport: str = TRANSPORT_USB) -> None:
         self._ref = ref
         self._closed = False
+        #: Lighting is written from its own thread. This keeps one message's
+        #: reports together, and stops :meth:`close` freeing the handle mid-write.
+        self._write_lock = threading.RLock()
         self._decoder = FrameDecoder()
         #: The one input-report trampoline this Device will ever register,
         #: created on the first :meth:`stream` and reused by every stream after.
@@ -347,12 +354,13 @@ class Device:
     def send_report(self, report: bytes) -> None:
         """Push one raw 63-byte output report."""
         assert _iokit is not None
-        if self._closed:
-            raise DeviceError("device is closed")
-        buf = (ctypes.c_ubyte * len(report)).from_buffer_copy(report)
-        result = _iokit.IOHIDDeviceSetReport(
-            self._ref, _REPORT_TYPE_OUTPUT, REPORT_ID, buf, len(report)
-        )
+        with self._write_lock:
+            if self._closed:
+                raise DeviceError("device is closed")
+            buf = (ctypes.c_ubyte * len(report)).from_buffer_copy(report)
+            result = _iokit.IOHIDDeviceSetReport(
+                self._ref, _REPORT_TYPE_OUTPUT, REPORT_ID, buf, len(report)
+            )
         if result != 0:
             raise DeviceError(f"IOHIDDeviceSetReport failed: 0x{result & 0xFFFFFFFF:08X}")
 
@@ -364,8 +372,9 @@ class Device:
         path, so lighting never touches the run loop.
         """
         payload = json.dumps(message, separators=(",", ":"))
-        for report in frame_message(payload, self.transport):
-            self.send_report(report)
+        with self._write_lock:
+            for report in frame_message(payload, self.transport):
+                self.send_report(report)
 
     def notify(self, method: str, params: Any) -> None:
         """Send a fire-and-forget ``v.oai.*`` notification."""
@@ -540,7 +549,18 @@ class Device:
         if self._closed:
             return
         self._unschedule()
+        # Set before waiting, so a message part-way through stops at its next report.
         self._closed = True
+        if not self._write_lock.acquire(timeout=CLOSE_WAIT_SECONDS):
+            # A write that never returned still holds the handle. Leaking one
+            # reference is survivable, and freeing it under that write is not.
+            return
+        try:
+            self._release_handle()
+        finally:
+            self._write_lock.release()
+
+    def _release_handle(self) -> None:
         if _iokit is not None:
             try:
                 _iokit.IOHIDDeviceClose(self._ref, 0)

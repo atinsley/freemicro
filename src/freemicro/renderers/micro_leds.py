@@ -414,6 +414,10 @@ class MicroLedsRenderer(Renderer):
         self._notify = notify if notify is not None else _print_notice
         #: The frame we believe is on the pad. ``None`` means "unknown, send".
         self._frame: Optional[Tuple[Any, ...]] = None
+        #: The messages behind ``_frame``, so only the ones that change are sent.
+        self._frame_parts: list[str] = []
+        #: Whether the pad was last sent a light carried by the Agent Key message.
+        self._together_up = False
         #: The frame the agent state *asks* for, dimmed or not. Changing it is
         #: activity in the factory's sense (§4) and wakes a dimmed pad.
         self._model: Optional[Tuple[Any, ...]] = None
@@ -685,13 +689,31 @@ class MicroLedsRenderer(Renderer):
         # every build; it is correlation metadata, not part of what the pad
         # shows, so it is excluded from the dedupe or an unchanged preview frame
         # would re-send on every tick.
-        key = repr([
-            {k: v for k, v in message.items() if k != "id"}
+        parts = [
+            repr({k: v for k, v in message.items() if k != "id"})
             for message in messages
-        ])
+        ]
+        key = repr(parts)
         if key != self._frame:
-            if self._send(messages):
+            # Only what changed goes out. A write can take over a second on
+            # Bluetooth, and re-sending a look restarts its animation, so a layer
+            # on the ring must not repaint the Agent Keys it didn't touch. A
+            # failed write or a reassert clears ``_frame``, which sends it all.
+            sent = self._frame_parts if self._frame is not None else []
+            changed = [
+                message for message, part in zip(messages, parts)
+                if part not in sent
+            ]
+            together = overlay is not None and overlay.together
+            if self._together_up and not together:
+                # The Agent Key message clears the flags and should take the other
+                # zones with it. Sending theirs straight after means a zone can't
+                # stay a rainbow if the firmware ever keeps it.
+                changed = list(reversed(messages))
+            if self._send(changed or messages):
                 self._frame = key
+                self._frame_parts = parts
+                self._together_up = together
             return
 
         if self._should_dim(state, slots, now):
@@ -926,9 +948,11 @@ class MicroLedsRenderer(Renderer):
                 return base_light
             return self._effective_look(base_light, flash_key, now)
 
+        together = overlay is not None and overlay.together
+
         def look(zone: str) -> Optional[StateLight]:
             """What backlight/underglow shows, or ``None`` if we do not drive it."""
-            if overlay is not None and zone in overlay.zones:
+            if overlay is not None and zone in overlay.zones and not together:
                 return eff(overlay, None)
             if battery_light is not None and zone == battery_zone:
                 return eff(battery_light, None)
@@ -953,7 +977,9 @@ class MicroLedsRenderer(Renderer):
         # across six when we do not.
         agent_msg: Optional[dict] = None
         if overlay is not None and ZONE_AGENT_KEYS in overlay.zones:
-            agent_msg = self._agent_keys_message(eff(overlay, None))
+            agent_msg = self._agent_keys_message(
+                eff(overlay, None), overlay if together else None
+            )
         elif battery_light is not None and battery_zone == ZONE_AGENT_KEYS:
             agent_msg = self._agent_keys_message(eff(battery_light, None))
         elif ZONE_AGENT_KEYS in lighting.zones:
@@ -963,11 +989,11 @@ class MicroLedsRenderer(Renderer):
                 # message entirely, so Codex's colour on that key persists. With
                 # the default all-six set every slot is owned and this is the
                 # full six-entry array it always was.
-                agent_msg = thstatus_message(
+                agent_msg = thstatus_message(self._with_sync_flags([
                     self._slot_entry(slot, now)
                     for slot in slots
                     if slot.owned
-                )
+                ]))
             else:
                 agent_msg = self._agent_keys_message(eff(base, "state"))
         elif ZONE_AGENT_KEYS in extra:
@@ -976,7 +1002,29 @@ class MicroLedsRenderer(Renderer):
             messages.append(agent_msg)
         return messages
 
-    def _agent_keys_message(self, light: StateLight) -> dict:
+    def _with_sync_flags(
+        self, entries: list[dict], together: ActivityLight | None = None
+    ) -> list[dict]:
+        """Say on the first entry whether it also drives the other two zones.
+
+        Flagging one key is enough, and is what was seen working on a real pad.
+        Once spin mode is on every frame says so explicitly, including the blank
+        and exit frames, so nothing can leave the flags set. Without spin mode the
+        flags stay out of the message, as the vendor's defaults allow.
+        """
+        if not entries:
+            return entries
+        if together is not None:
+            entries[0]["sk"] = 1 if ZONE_BACKLIGHT in together.zones else 0
+            entries[0]["sa"] = 1 if ZONE_UNDERGLOW in together.zones else 0
+        elif self.lighting.spin_on_hold:
+            entries[0]["sk"] = 0
+            entries[0]["sa"] = 0
+        return entries
+
+    def _agent_keys_message(
+        self, light: StateLight, together: ActivityLight | None = None
+    ) -> dict:
         """One look across every Agent Key we own (all six by default).
 
         Built here from :func:`thread_entry` rather than :func:`all_agent_keys`
@@ -991,12 +1039,12 @@ class MicroLedsRenderer(Renderer):
         The mirror policy, a held-key overlay and the battery cue all go through
         here, so none of them ever touch a key we do not own.
         """
-        return thstatus_message(
+        return thstatus_message(self._with_sync_flags([
             thread_entry(
                 index, light.color, light.effect, light.brightness, light.speed
             )
             for index in self.owned_keys
-        )
+        ], together))
 
     def _effective_look(
         self, base: StateLight, flash_key: Optional[str], now: float

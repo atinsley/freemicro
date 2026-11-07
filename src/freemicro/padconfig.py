@@ -803,6 +803,10 @@ class ActivityLight(StateLight):
 
     zones: Sequence[str] = (ZONE_UNDERGLOW,)
     timeout_seconds: float = DEFAULT_ACTIVITY_TIMEOUT
+    #: Send every zone in the one Agent Key message, using its ``sk`` and ``sa``
+    #: flags, so they all change at the same instant. Off for lights from a config
+    #: file, because it has only been tried on a real pad with spin mode's look.
+    together: bool = False
 
     @property
     def drives_backlight(self) -> bool:
@@ -835,21 +839,27 @@ def factory_recording_light() -> ActivityLight:
 
 
 #: How fast the firmware's ``rainbow`` runs while ``lighting.spin_on_hold`` is on.
-SPIN_SPEED = 0.8
+#: A whole number partly because ``0.8`` on all six keys pushes the message into a
+#: fifth Bluetooth report.
+SPIN_SPEED = 1.0
 
 
 def spin_light() -> ActivityLight:
-    """The look of a held push-to-talk key in spin mode: a rainbow underglow.
+    """The look of a held push-to-talk key in spin mode: the whole pad a rainbow.
 
-    Underglow only, like the factory recording light, so the Agent Keys go on
-    showing their projects. ``rainbow`` ignores the colour; it is here because
-    an :class:`ActivityLight` has to have one.
+    Sent as one message, because separate ones arrive over a second apart on
+    Bluetooth. The Agent Keys stop showing their projects until the key is let go.
+    Being a layer, it has nothing to restore: the next frame without it shows each
+    key's state as it is then. ``rainbow`` ignores the colour, so it is ``0``, the
+    shortest thing an :class:`ActivityLight` can carry.
     """
     return ActivityLight(
-        color=parse_color(FACTORY_RECORDING),
+        color=0,
         effect=parse_effect("rainbow"),
         brightness=1.0,
         speed=SPIN_SPEED,
+        zones=(ZONE_BACKLIGHT, ZONE_UNDERGLOW, ZONE_AGENT_KEYS),
+        together=True,
     )
 
 
