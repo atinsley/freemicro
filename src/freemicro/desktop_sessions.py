@@ -106,12 +106,23 @@ def title_for(session_id: str) -> str:
     return title.strip() if isinstance(title, str) else ""
 
 
-def started_by_remote_control(session_id: str) -> bool:
-    """Was this chat started through Remote Control? Never raises."""
+def accepts_new_title(session_id: str) -> bool:
+    """Would the app show a title sent by a hook? Never raises.
+
+    Follows the app's own check (``yieldsToProposedTitle``). It refuses a chat whose
+    title it didn't generate, which covers forks and chats renamed by hand, and a
+    chat titled from a PR or started through Remote Control. That check has one more
+    condition that couldn't be identified, so a ``True`` here isn't a guarantee.
+    """
     if not local_id_for(session_id):
-        return False
+        return True
     record = _record_in(_found[session_id], session_id)
-    return bool(record and record.get("remoteControlSpawn"))
+    if not record:
+        return True
+    title = record.get("title")
+    if isinstance(title, str) and title.strip() and record.get("titleSource") != "auto":
+        return False
+    return not (record.get("titleFromPr") or record.get("remoteControlSpawn"))
 
 
 def spawn_open(url: str) -> None:
@@ -126,11 +137,11 @@ def spawn_open(url: str) -> None:
 
 __all__ = [
     "NEW_CHAT_URL",
+    "accepts_new_title",
     "chat_url",
     "forget_lookups",
     "local_id_for",
     "sessions_root",
     "spawn_open",
-    "started_by_remote_control",
     "title_for",
 ]

@@ -73,11 +73,12 @@ def records(tmp_path, monkeypatch):
     (folder / "account" / "org").mkdir(parents=True)
     monkeypatch.setattr(desktop_sessions, "sessions_root", lambda: folder)
 
-    def write(title):
+    def write(title, **fields):
         path = folder / "account" / "org" / f"{LOCAL_ID}.json"
         path.write_text(json.dumps({
             "sessionId": LOCAL_ID, "cliSessionId": CLI_ID,
-            "isArchived": False, "title": title,
+            "isArchived": False, "title": title, "titleSource": "auto",
+            **fields,
         }), encoding="utf-8")
 
     return write
@@ -187,11 +188,11 @@ def test_a_session_title_is_used_when_the_app_has_none(setup):
     ) == "1 · My name"
 
 
-def test_the_apps_title_is_preferred_so_a_rename_there_is_kept(setup):
-    setup.records("Renamed in the app")
+def test_the_apps_title_is_preferred_over_the_hooks(setup):
+    setup.records("A newer title")
     assert _title_of(
         chat_titles.title_output(_event(session_title="1 · Old name"))
-    ) == "1 · Renamed in the app"
+    ) == "1 · A newer title"
 
 
 def test_only_a_prompt_renames(setup):
@@ -253,39 +254,45 @@ def test_a_broken_keymap_never_gets_in_the_way_of_a_prompt(setup, monkeypatch, c
     assert (code, out) == (0, "")
 
 
-# -- Remote Control chats ---------------------------------------------------------
+# -- chats whose title the app won't change ----------------------------------------
 
 
-def _remote_control_record(root, spawn):
-    path = root() / "account" / "org" / f"{LOCAL_ID}.json"
-    path.write_text(json.dumps({
-        "sessionId": LOCAL_ID, "cliSessionId": CLI_ID, "isArchived": False,
-        "title": "Home Assistant audit", "remoteControlSpawn": spawn,
-    }), encoding="utf-8")
+REMOTE_CONTROL = {"remoteControlSpawn": {"ccrSessionId": "cse_1"}}
+FROM_PR = {"titleFromPr": {"prNumber": 16, "title": "Fix it"}}
 
 
-def test_a_remote_control_chat_is_recognised(setup):
-    _remote_control_record(desktop_sessions.sessions_root, {"ccrSessionId": "cse_1"})
-    assert desktop_sessions.started_by_remote_control(CLI_ID) is True
+def test_a_title_the_app_generated_can_be_replaced(setup):
+    assert desktop_sessions.accepts_new_title(CLI_ID) is True
 
 
-def test_an_ordinary_chat_is_not(setup):
-    assert desktop_sessions.started_by_remote_control(CLI_ID) is False
-
-
-def test_an_unknown_chat_is_not(setup):
-    assert desktop_sessions.started_by_remote_control("unknown") is False
-
-
-def test_a_remote_control_chat_gets_no_title_because_the_app_ignores_it(setup):
-    _remote_control_record(desktop_sessions.sessions_root, {"ccrSessionId": "cse_1"})
+@pytest.mark.parametrize(
+    "fields",
+    [
+        pytest.param({"titleSource": None}, id="fork"),
+        pytest.param({"titleSource": "user"}, id="renamed-by-hand"),
+        pytest.param({"titleSource": "tool"}, id="named-by-a-tool"),
+        pytest.param(REMOTE_CONTROL, id="remote-control"),
+        pytest.param(FROM_PR, id="from-a-pr"),
+    ],
+)
+def test_the_app_refuses_these_so_the_hook_leaves_them_alone(setup, fields):
+    setup.records("Code audit", **fields)
+    assert desktop_sessions.accepts_new_title(CLI_ID) is False
     assert chat_titles.title_output(_event()) is None
 
 
-def test_it_is_skipped_even_when_only_a_session_title_is_known(setup):
-    path = desktop_sessions.sessions_root() / "account" / "org" / f"{LOCAL_ID}.json"
-    path.write_text(json.dumps({
-        "sessionId": LOCAL_ID, "cliSessionId": CLI_ID, "isArchived": False,
-        "remoteControlSpawn": {"ccrSessionId": "cse_1"},
-    }), encoding="utf-8")
+@pytest.mark.parametrize("title", [None, "", "   "])
+def test_with_no_title_yet_any_source_can_be_named(setup, title):
+    setup.records(title, titleSource=None)
+    assert desktop_sessions.accepts_new_title(CLI_ID) is True
+
+
+def test_a_chat_the_app_does_not_know_is_not_refused(setup):
+    assert desktop_sessions.accepts_new_title("unknown") is True
+
+
+@pytest.mark.parametrize("fields", [REMOTE_CONTROL, FROM_PR], ids=["rc", "pr"])
+def test_having_no_title_does_not_lift_the_other_refusals(setup, fields):
+    setup.records(None, **fields)
+    assert desktop_sessions.accepts_new_title(CLI_ID) is False
     assert chat_titles.title_output(_event(session_title="Named")) is None

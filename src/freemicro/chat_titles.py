@@ -9,10 +9,12 @@ prompt. The pad itself is always right.
 
 A new chat is skipped until the app has given it a title, because setting one that
 early might stop the app generating its own. The app's record is the first choice
-for the title, since it reflects a rename made in the app.
+for the title, since it's newer than the one the hook is told about.
 
-A chat started through Remote Control is skipped too. Its transcript takes the new
-title, but the app keeps showing the old one, so the two would only disagree.
+A chat the app won't retitle is skipped too: a fork, a chat renamed by hand, a chat
+titled from a PR, or one started through Remote Control. See
+:func:`freemicro.desktop_sessions.accepts_new_title`. The app would put its own title
+back, or leave the transcript disagreeing with what it shows.
 
 Turned on with ``"agent_keys": {"group": "chat", "number_titles": true}``.
 """
@@ -57,7 +59,7 @@ def title_output(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if permission_requests.is_non_interactive():
         return None
     session_id = session_id_of(event)
-    if desktop_sessions.started_by_remote_control(session_id):
+    if not desktop_sessions.accepts_new_title(session_id):
         return None
     title = desktop_sessions.title_for(session_id) or str(
         event.get("session_title") or ""

@@ -61,9 +61,14 @@ title, as `1 · Code audit`. It uses the `sessionTitle` output of the
   show the same number. The pad itself is always right.
 - **New chats:** the first message gets no number, because the app hasn't made a
   title yet. The number appears on the next message.
-- **Your own names:** a name you give a chat is kept, with the number in front.
-- **Remote Control chats:** a chat started through Remote Control, such as from a
-  phone, gets no number, because the app ignores the rename. Its key still works.
+- **Chats that get no number:** the app only lets a hook change a title it generated
+  itself, so these are skipped. Their keys still work.
+  - a fork, because the app names it when it's created
+  - a chat you or a tool renamed
+  - a chat titled from a pull request
+  - a chat started through Remote Control, such as from a phone, which stays that
+    way: its Remote Control switch is locked, and forking it makes a chat of the
+    first kind
 - **Turning it off:** titles keep their numbers until you rename them.
 
 ## Answering prompts from the pad
