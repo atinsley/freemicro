@@ -682,7 +682,7 @@ def _print_liveness(report) -> None:
 
 
 def cmd_status(args: argparse.Namespace) -> int:
-    from freemicro import staleness
+    from freemicro import desktop_compat, staleness
 
     cfg = Config.load()
     store = _store(cfg)
@@ -696,6 +696,7 @@ def cmd_status(args: argparse.Namespace) -> int:
                     "sessions": [s.to_dict() for s in store.sessions()],
                     "winner": winner.to_dict() if winner else None,
                     "bridge": report.to_dict(),
+                    "desktop_app": [p.to_dict() for p in desktop_compat.check()],
                 }
             )
         )
@@ -704,6 +705,9 @@ def cmd_status(args: argparse.Namespace) -> int:
     # Liveness first. Everything below it is a description of a light, and a
     # description of a light is worthless if nobody is switching it on.
     _print_liveness(report)
+    for problem in desktop_compat.check():
+        print(f"\n! The Claude app has changed: {problem.summary}")
+        print(f"  {problem.effect}")
     print()
     sessions = store.sessions()
     print(f"Resolved state: {store.resolved_state().value}")
@@ -1576,6 +1580,25 @@ def _doctor_liveness(check, live) -> None:
               "all on the current code and config")
 
 
+def _doctor_desktop_app(check) -> None:
+    """Whether the Claude app still has what the desktop features rely on.
+
+    Warnings, not failures: the pad works either way, and only a few features
+    are affected. Silent on a machine without the app.
+    """
+    from freemicro import desktop_compat
+
+    if not desktop_compat.app_path().exists():
+        return
+    print("\nClaude app")
+    problems = desktop_compat.check()
+    if not problems:
+        check(True, "the app still has what Agent keys and chat numbers rely on")
+    for problem in problems:
+        print(f"  [warn]  {problem.summary}")
+        print(f"          {problem.effect}")
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     """Check everything that has to be true, and name the fix for each failure.
 
@@ -1825,6 +1848,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     from freemicro import staleness
 
     _doctor_liveness(check, staleness.report())
+    _doctor_desktop_app(check)
 
     if failures:
         print(f"\n{failures} check(s) failed. Fix the arrows above and re-run.")

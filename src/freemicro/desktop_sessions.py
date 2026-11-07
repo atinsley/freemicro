@@ -26,7 +26,7 @@ from typing import Dict, Optional
 NEW_CHAT_URL = "claude://code/new"
 
 #: The form the app itself requires, and all that may ever reach a URL.
-_LOCAL_ID_RE = re.compile(r"^local_[A-Za-z0-9-]{1,64}$")
+LOCAL_ID_RE = re.compile(r"^local_[A-Za-z0-9-]{1,64}$")
 
 #: CLI session id -> the file that named its app id. A chat's record doesn't move
 #: and there are hundreds of them, so a key press shouldn't read them all each time.
@@ -61,7 +61,7 @@ def _record_in(path: Path, session_id: str) -> Optional[dict]:
     if data.get("isArchived"):
         return None
     local_id = data.get("sessionId")
-    if isinstance(local_id, str) and _LOCAL_ID_RE.match(local_id):
+    if isinstance(local_id, str) and LOCAL_ID_RE.match(local_id):
         return data
     return None
 

@@ -95,6 +95,17 @@ The prompt stays on screen the whole time, and you can still answer it there.
 If you swap caps, these have documented desktop shortcuts: `TERM` (`` Ctrl+` ``),
 `DIFF` (`Cmd+Shift+D`), `NEW` (`Cmd+N`) and `PARTY`, which is side chat (`Cmd+;`).
 
+## After an app update
+
+Agent keys and chat numbers rely on parts of the app that aren't documented: its
+`claude://` links, its chat record files, and its rule for accepting a title from a
+hook. `freemicro status` and `freemicro doctor` look for each of those and warn you
+if one has gone or changed, and what that affects.
+
+No warning doesn't guarantee everything works, because the check sees that the pieces
+are there, not how they behave. You only see a warning when you run one of those
+commands, so run one if a key or a number starts misbehaving.
+
 ## What it cannot do yet
 
 - Answer a prompt after its five-minute wait. Answer it on screen instead.

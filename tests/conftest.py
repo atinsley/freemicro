@@ -35,6 +35,9 @@ def no_desktop_sessions(monkeypatch, tmp_path):
     )
     monkeypatch.setattr("freemicro.desktop_sessions.spawn_open", lambda url: None)
     monkeypatch.setattr("freemicro.desktop_sessions._found", {})
+    monkeypatch.setattr(
+        "freemicro.desktop_compat.app_path", lambda: tmp_path / "no-app" / "Claude.app"
+    )
 
 
 @pytest.fixture(autouse=True)
