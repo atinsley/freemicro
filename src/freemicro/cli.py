@@ -682,11 +682,12 @@ def _print_liveness(report) -> None:
 
 
 def cmd_status(args: argparse.Namespace) -> int:
-    from freemicro import desktop_compat, staleness
+    from freemicro import battery, desktop_compat, staleness
 
     cfg = Config.load()
     store = _store(cfg)
     report = staleness.report()
+    reading = battery.read_pad()
     if args.json:
         winner = store.resolve()
         print(
@@ -697,6 +698,7 @@ def cmd_status(args: argparse.Namespace) -> int:
                     "winner": winner.to_dict() if winner else None,
                     "bridge": report.to_dict(),
                     "desktop_app": [p.to_dict() for p in desktop_compat.check()],
+                    "pad_battery": reading.to_dict() if reading else None,
                 }
             )
         )
@@ -705,6 +707,9 @@ def cmd_status(args: argparse.Namespace) -> int:
     # Liveness first. Everything below it is a description of a light, and a
     # description of a light is worthless if nobody is switching it on.
     _print_liveness(report)
+    if reading:
+        charging = " (charging)" if reading.charging else ""
+        print(f"Pad battery: {reading.level}%{charging}")
     for problem in desktop_compat.check():
         print(f"\n! The Claude app has changed: {problem.summary}")
         print(f"  {problem.effect}")
@@ -2476,6 +2481,7 @@ def _run_pipeline(
     from freemicro import staleness
     from freemicro.agentkeys import AgentKeyOwnership
     from freemicro.alerts import Alerter
+    from freemicro.battery import BatteryWatch
     from freemicro.device import close_shared, run_with_reconnect
     from freemicro.input.actions import RecordingBackend, best_backend
     from freemicro.input.bridge import Bridge, JoystickTracker
@@ -2657,9 +2663,11 @@ def _run_pipeline(
     print("" if headless else "Ctrl-C to stop.\n", flush=True)
 
     housekeeping = [time.time()]
+    battery_watch = BatteryWatch()
 
     def tick() -> None:
         nonlocal last
+        battery_watch.poll(pad.lighting.battery)
         # Before rendering, not after: a reassert clears the renderer's dedupe
         # cache, so acting on it here means the resend happens in *this* tick.
         for event in owner.poll():

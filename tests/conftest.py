@@ -28,6 +28,12 @@ def interactive_entrypoint(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_real_battery(monkeypatch):
+    """Tests see no battery reading, and so can never post a real banner."""
+    monkeypatch.setattr("freemicro.battery._pmset_output", lambda: "")
+
+
+@pytest.fixture(autouse=True)
 def no_desktop_sessions(monkeypatch, tmp_path):
     """Keep tests away from the real Claude app's records and its links."""
     monkeypatch.setattr(

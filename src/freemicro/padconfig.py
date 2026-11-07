@@ -904,8 +904,8 @@ DEFAULT_BATTERY_COLOR = "#FF6D00"
 DEFAULT_BATTERY_POLL_SECONDS = 60.0
 
 _BATTERY_FIELDS = (
-    "enabled", "threshold", "zone", "color", "effect", "brightness", "speed",
-    "poll_seconds", "comment",
+    "enabled", "notify", "threshold", "zone", "color", "effect", "brightness",
+    "speed", "poll_seconds", "comment",
 )
 
 
@@ -929,6 +929,9 @@ class BatteryConfig:
     """
 
     enabled: bool = False
+    #: Post a macOS banner when the battery runs low. Separate from the cue, and
+    #: doesn't use the cached reading. See :mod:`freemicro.battery`.
+    notify: bool = False
     #: Percent at or below which - and only when *not* charging - the cue shows.
     threshold: int = DEFAULT_BATTERY_THRESHOLD
     #: Where the cue lands. The underglow by default, so it never steals an
@@ -1705,8 +1708,12 @@ def _parse_battery(raw: Any) -> BatteryConfig:
         raise PadConfigError(
             "\"lighting.battery.poll_seconds\" must be more than 0"
         )
+    notify = raw.get("notify", defaults.notify)
+    if not isinstance(notify, bool):
+        raise PadConfigError("\"lighting.battery.notify\" must be true or false")
     return BatteryConfig(
         enabled=bool(raw.get("enabled", defaults.enabled)),
+        notify=notify,
         threshold=threshold,
         zone=zone,
         color=color,

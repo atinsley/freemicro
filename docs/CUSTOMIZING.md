@@ -863,6 +863,31 @@ never on the first sight of a state at startup.
 "lighting": { "flash_on": [] }                      // turn it off
 ```
 
+### Low-battery notification
+
+FreeMicro can post a macOS banner when the pad's battery runs low. It's off by
+default, and doesn't need the lighting cue below.
+
+```json
+"lighting": {
+  "battery": {
+    "notify": true,
+    "threshold": 20           // percent, shared with the cue
+  }
+}
+```
+
+The bridge checks every five minutes and warns when the level reaches the threshold,
+then again each time it falls another 5 points. A charging pad gets no banner. Once
+the pad is back at least 5 points above the threshold, the next low level warns again.
+
+The reading comes from macOS (`pmset -g accps`), so it puts nothing on the pad's
+channel and needs no menu bar. `freemicro status` shows the same reading. A pad on USB
+may not be listed there, and then there's no banner.
+
+The first banner may need permission: if none appears, check Script Editor in System
+Settings > Notifications.
+
 ### Low-battery cue
 
 The pad is battery-powered, and FreeMicro can reflect a low battery through the
